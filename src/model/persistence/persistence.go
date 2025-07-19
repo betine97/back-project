@@ -1,7 +1,7 @@
 package persistence
 
 import (
-	entity "back-project/src/model/entitys"
+	entity "github.com/betine97/back-project.git/src/model/entitys"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
