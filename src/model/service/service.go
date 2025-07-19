@@ -3,11 +3,15 @@ package service
 import (
 	"time"
 
-	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	"github.com/betine97/back-project.git/src/controller/dtos"
-	entity "github.com/betine97/back-project.git/src/model/entitys"
-	"github.com/betine97/back-project.git/src/model/persistence"
-	"github.com/betine97/back-project.git/src/model/service/crypto"
+	"back-project/src/controller/dtos"
+
+	entity "back-project/src/model/entitys.go"
+
+	"back-project/cmd/config/exceptions"
+
+	"back-project/src/model/persistence"
+	"back-project/src/model/service/crypto"
+
 	"go.uber.org/zap"
 )
 

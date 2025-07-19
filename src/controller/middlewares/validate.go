@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"back-project/src/controller/dtos"
+
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	"github.com/betine97/back-project.git/src/controller/dtos"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"

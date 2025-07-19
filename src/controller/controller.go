@@ -3,11 +3,16 @@ package controller
 import (
 	"time"
 
-	"github.com/betine97/back-project.git/cmd/config"
-	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	"github.com/betine97/back-project.git/src/controller/dtos"
-	"github.com/betine97/back-project.git/src/model/service"
-	"github.com/betine97/back-project.git/src/view"
+	"back-project/src/controller/dtos"
+
+	"back-project/src/view"
+
+	"back-project/cmd/config"
+
+	"back-project/cmd/config/exceptions"
+
+	"back-project/src/model/service"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 	"go.uber.org/zap"

@@ -1,8 +1,8 @@
 package view
 
 import (
-	"github.com/betine97/back-project.git/src/controller/dtos"
-	entity "github.com/betine97/back-project.git/src/model/entitys"
+	"back-project/src/controller/dtos"
+	entity "back-project/src/model/entitys.go"
 )
 
 func ConvertDomainToResponse(resp *entity.CreateUser) dtos.NewUser {
