@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
 	"github.com/betine97/back-project.git/src/controller/dtos"
+	modelDtos "github.com/betine97/back-project.git/src/model/dtos"
 	entity "github.com/betine97/back-project.git/src/model/entitys"
 	"github.com/betine97/back-project.git/src/model/persistence"
 	"github.com/betine97/back-project.git/src/model/service/crypto"
@@ -12,9 +13,9 @@ import (
 type ServiceInterface interface {
 	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
 	LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr)
-	GetAllProductsService() (*dtos.ProductListResponse, *exceptions.RestErr)
-	GetProductByIDService(id int) (*dtos.ProductResponse, *exceptions.RestErr)
-	GetProductsWithFiltersService(params dtos.ProductQueryParams) (*dtos.ProductListResponse, *exceptions.RestErr)
+	GetAllProductsService() (*modelDtos.ProductListResponse, *exceptions.RestErr)
+	GetProductByIDService(id int) (*modelDtos.ProductResponse, *exceptions.RestErr)
+	GetProductsWithFiltersService(params modelDtos.ProductQueryParams) (*modelDtos.ProductListResponse, *exceptions.RestErr)
 }
 
 type Service struct {

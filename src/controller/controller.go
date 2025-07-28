@@ -7,6 +7,7 @@ import (
 	"github.com/betine97/back-project.git/cmd/config"
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
 	"github.com/betine97/back-project.git/src/controller/dtos"
+	modelDtos "github.com/betine97/back-project.git/src/model/dtos"
 	"github.com/betine97/back-project.git/src/model/service"
 	"github.com/betine97/back-project.git/src/view"
 	"github.com/gofiber/fiber/v2"
