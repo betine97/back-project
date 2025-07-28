@@ -33,12 +33,16 @@ func main() {
 	createTableSQL := loadSQLFile("sql/create_table.sql")
 	insertProductsSQL := loadSQLFile("sql/insert_products.sql")
 	createUserSQL := loadSQLFile("sql/create_user.sql")
+	createFornecedoresSQL := loadSQLFile("sql/create_fornecedores.sql")
+	insertFornecedoresSQL := loadSQLFile("sql/insert_fornecedores.sql")
 
 	fmt.Println("Scripts carregados com sucesso!")
 
 	executeRawSQL(db, createTableSQL, "Tabela produtos criada com sucesso!")
 	executeRawSQL(db, insertProductsSQL, "Produtos inseridos com sucesso!")
 	executeRawSQL(db, createUserSQL, "Tabela users criada com sucesso!")
+	executeRawSQL(db, createFornecedoresSQL, "Tabela fornecedores criada com sucesso!")
+	executeRawSQL(db, insertFornecedoresSQL, "Fornecedores inseridos com sucesso!")
 
 	userController := initDependencies(db)
 
