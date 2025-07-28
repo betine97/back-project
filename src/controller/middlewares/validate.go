@@ -91,10 +91,7 @@ func ValidateUnexpectedFields(ctx *fiber.Ctx, data []byte) error {
 		"first_name": true,
 		"last_name":  true,
 		"email":      true,
-		"cep":        true,
-		"country":    true,
 		"city":       true,
-		"address":    true,
 		"password":   true,
 	}
 

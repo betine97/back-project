@@ -5,9 +5,12 @@ import (
 	entity "github.com/betine97/back-project.git/src/model/entitys"
 )
 
-func ConvertDomainToResponse(resp *entity.CreateUser) dtos.NewUser {
+func ConvertDomainToResponse(resp *entity.User) dtos.NewUser {
 	return dtos.NewUser{
-		First_Name: resp.First_Name,
-		Email:      resp.Email,
+		ID:        resp.ID,
+		FirstName: resp.FirstName,
+		LastName:  resp.LastName,
+		Email:     resp.Email,
+		City:      resp.City,
 	}
 }

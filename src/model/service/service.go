@@ -1,8 +1,6 @@
 package service
 
 import (
-	"time"
-
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
 	"github.com/betine97/back-project.git/src/controller/dtos"
 	entity "github.com/betine97/back-project.git/src/model/entitys"
@@ -12,8 +10,11 @@ import (
 )
 
 type ServiceInterface interface {
-	CreateUserService(request dtos.CreateUser) (*entity.CreateUser, *exceptions.RestErr)
+	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
 	LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr)
+	GetAllProductsService() (*dtos.ProductListResponse, *exceptions.RestErr)
+	GetProductByIDService(id int) (*dtos.ProductResponse, *exceptions.RestErr)
+	GetProductsWithFiltersService(params dtos.ProductQueryParams) (*dtos.ProductListResponse, *exceptions.RestErr)
 }
 
 type Service struct {
@@ -48,22 +49,17 @@ func (srv *Service) LoginUserService(request dtos.UserLogin) (bool, *exceptions.
 	return true, nil
 }
 
-func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.CreateUser {
-	return &entity.CreateUser{
-		ID:         entity.NewID(),
-		First_Name: request.First_Name,
-		Last_Name:  request.Last_Name,
-		Email:      request.Email,
-		CepBR:      request.CepBR,
-		Country:    request.Country,
-		City:       request.City,
-		Address:    request.Address,
-		Password:   hashedPassword,
-		CreateAt:   time.Now(),
+func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.User {
+	return &entity.User{
+		FirstName: request.FirstName,
+		LastName:  request.LastName,
+		Email:     request.Email,
+		City:      request.City,
+		Password:  hashedPassword,
 	}
 }
 
-func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.CreateUser, *exceptions.RestErr) {
+func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr) {
 	zap.L().Info("Starting user creation service")
 
 	emailExists := srv.db.GetUser(request.Email)
@@ -89,4 +85,148 @@ func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.CreateUs
 
 	zap.L().Info("User created successfully", zap.String("email", user.Email))
 	return user, nil
+}
+
+func (srv *Service) GetAllProductsService() (*modelDtos.ProductListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get all products service")
+
+	products, err := srv.db.GetAllProducts()
+	if err != nil {
+		zap.L().Error("Error getting products from database", zap.Error(err))
+		return nil, exceptions.NewInternalServerError("Error retrieving products")
+	}
+
+	productResponses := make([]modelDtos.ProductResponse, len(products))
+	for i, product := range products {
+		productResponses[i] = modelDtos.ProductResponse{
+			ID:            product.ID,
+			CodigoBarra:   product.CodigoBarra,
+			NomeProduto:   product.NomeProduto,
+			SKU:           product.SKU,
+			Categoria:     product.Categoria,
+			DestinadoPara: product.DestinadoPara,
+			Variacao:      product.Variacao,
+			Marca:         product.Marca,
+			Descricao:     product.Descricao,
+			Status:        product.Status,
+			PrecoVenda:    product.PrecoVenda,
+		}
+	}
+
+	response := &modelDtos.ProductListResponse{
+		Products: productResponses,
+		Total:    len(productResponses),
+		Page:     1,
+		Limit:    len(productResponses),
+	}
+
+	zap.L().Info("Successfully retrieved all products", zap.Int("count", len(products)))
+	return response, nil
+}
+
+func (srv *Service) GetProductByIDService(id int) (*modelDtos.ProductResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get product by ID service", zap.Int("id", id))
+
+	product, err := srv.db.GetProductByID(id)
+	if err != nil {
+		zap.L().Error("Product not found", zap.Error(err), zap.Int("id", id))
+		return nil, exceptions.NewNotFoundError("Product not found")
+	}
+
+	response := &modelDtos.ProductResponse{
+		ID:            product.ID,
+		CodigoBarra:   product.CodigoBarra,
+		NomeProduto:   product.NomeProduto,
+		SKU:           product.SKU,
+		Categoria:     product.Categoria,
+		DestinadoPara: product.DestinadoPara,
+		Variacao:      product.Variacao,
+		Marca:         product.Marca,
+		Descricao:     product.Descricao,
+		Status:        product.Status,
+		PrecoVenda:    product.PrecoVenda,
+	}
+
+	zap.L().Info("Successfully retrieved product by ID", zap.Int("id", id))
+	return response, nil
+}
+
+func (srv *Service) GetProductsWithFiltersService(params modelDtos.ProductQueryParams) (*modelDtos.ProductListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get products with filters service", zap.Any("params", params))
+
+	// Set default values
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.Limit <= 0 {
+		params.Limit = 10
+	}
+
+	offset := (params.Page - 1) * params.Limit
+
+	// Convert filters to map
+	filters := make(map[string]interface{})
+	if params.Filter != nil {
+		if params.Filter.Categoria != "" {
+			filters["categoria"] = params.Filter.Categoria
+		}
+		if params.Filter.DestinadoPara != "" {
+			filters["destinado_para"] = params.Filter.DestinadoPara
+		}
+		if params.Filter.Marca != "" {
+			filters["marca"] = params.Filter.Marca
+		}
+		if params.Filter.Variacao != "" {
+			filters["variacao"] = params.Filter.Variacao
+		}
+		if params.Filter.Status != "" {
+			filters["status"] = params.Filter.Status
+		}
+		if params.Filter.MinPrice > 0 {
+			filters["min_price"] = params.Filter.MinPrice
+		}
+		if params.Filter.MaxPrice > 0 {
+			filters["max_price"] = params.Filter.MaxPrice
+		}
+		if params.Filter.Search != "" {
+			filters["search"] = params.Filter.Search
+		}
+	}
+
+	products, total, err := srv.db.GetProductsWithFilters(filters, params.Limit, offset)
+	if err != nil {
+		zap.L().Error("Error getting filtered products", zap.Error(err))
+		return nil, exceptions.NewInternalServerError("Error retrieving filtered products")
+	}
+
+	productResponses := make([]modelDtos.ProductResponse, len(products))
+	for i, product := range products {
+		productResponses[i] = modelDtos.ProductResponse{
+			ID:            product.ID,
+			CodigoBarra:   product.CodigoBarra,
+			NomeProduto:   product.NomeProduto,
+			SKU:           product.SKU,
+			Categoria:     product.Categoria,
+			DestinadoPara: product.DestinadoPara,
+			Variacao:      product.Variacao,
+			Marca:         product.Marca,
+			Descricao:     product.Descricao,
+			Status:        product.Status,
+			PrecoVenda:    product.PrecoVenda,
+		}
+	}
+
+	response := &modelDtos.ProductListResponse{
+		Products: productResponses,
+		Total:    total,
+		Page:     params.Page,
+		Limit:    params.Limit,
+	}
+
+	zap.L().Info("Successfully retrieved filtered products",
+		zap.Int("count", len(products)),
+		zap.Int("total", total),
+		zap.Int("page", params.Page))
+
+	return response, nil
 }

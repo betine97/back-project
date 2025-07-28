@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 
-	entity "github.com/betine97/back-project.git/src/model/entitys"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -33,6 +32,7 @@ type Config struct {
 	WebServerPort string
 	JWTSecret     string
 	JWTExpiresIn  int
+	CORSOrigins   string
 }
 
 func NewConfig() *Config {
@@ -54,6 +54,7 @@ func init() {
 		DBName:        os.Getenv("DB_NAME"),
 		WebServerPort: os.Getenv("WEB_SERVER_PORT"),
 		JWTSecret:     os.Getenv("JWT_SECRET"),
+		CORSOrigins:   getEnvWithDefault("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080"),
 	}
 
 	Cfg.JWTExpiresIn, _ = strconv.Atoi(os.Getenv("JWT_EXPIRES_IN"))
@@ -97,7 +98,7 @@ func NewDatabaseConnection() (*gorm.DB, error) {
 			return nil, err
 		}
 
-		db.AutoMigrate(&entity.CreateUser{})
+		// Tabelas serão criadas via scripts SQL no main.go
 
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", Cfg.DBDriver)
@@ -108,4 +109,12 @@ func NewDatabaseConnection() (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// getEnvWithDefault returns environment variable value or default if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
