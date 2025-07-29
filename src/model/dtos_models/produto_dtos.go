@@ -1,4 +1,4 @@
-package dtos
+package dtos_models
 
 // ProductResponse represents the response structure for product data
 type ProductResponse struct {

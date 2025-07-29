@@ -30,19 +30,17 @@ func main() {
 
 	fmt.Println("✅ Banco de dados criado em memória com sucesso!")
 
-	createTableSQL := loadSQLFile("sql/create_table.sql")
-	insertProductsSQL := loadSQLFile("sql/insert_products.sql")
-	createUserSQL := loadSQLFile("sql/create_user.sql")
-	createFornecedoresSQL := loadSQLFile("sql/create_fornecedores.sql")
-	insertFornecedoresSQL := loadSQLFile("sql/insert_fornecedores.sql")
+	tablesUsers := loadSQLFile("sql/users/table_users.sql")
+	tablesOpr := loadSQLFile("sql/opr/tables_opr.sql")
+	valuesOpr := loadSQLFile("sql/opr/inserts_opr.sql")
+	trigger_margem := loadSQLFile("sql/opr/trigger_margem.sql")
 
 	fmt.Println("Scripts carregados com sucesso!")
 
-	executeRawSQL(db, createTableSQL, "Tabela produtos criada com sucesso!")
-	executeRawSQL(db, insertProductsSQL, "Produtos inseridos com sucesso!")
-	executeRawSQL(db, createUserSQL, "Tabela users criada com sucesso!")
-	executeRawSQL(db, createFornecedoresSQL, "Tabela fornecedores criada com sucesso!")
-	executeRawSQL(db, insertFornecedoresSQL, "Fornecedores inseridos com sucesso!")
+	executeRawSQL(db, tablesUsers, "Tabelas de produtos criadas com sucesso!")
+	executeRawSQL(db, tablesOpr, "Tabelas de operações criadas com sucesso!")
+	executeRawSQL(db, valuesOpr, "Valores de operações inseridos com sucesso!")
+	executeRawSQL(db, trigger_margem, "Trigger de operações inserido com sucesso!")
 
 	userController := initDependencies(db)
 

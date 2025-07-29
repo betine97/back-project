@@ -1,4 +1,4 @@
-package dtos
+package dtos_controllers
 
 type CreateUser struct {
 	FirstName string `json:"first_name" validate:"required,min=2,max=100" example:"John"`
