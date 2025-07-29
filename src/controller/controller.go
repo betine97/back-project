@@ -7,6 +7,7 @@ import (
 	"github.com/betine97/back-project.git/cmd/config"
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
 	dtos_controllers "github.com/betine97/back-project.git/src/controller/dtos_controllers"
+	dtos_models "github.com/betine97/back-project.git/src/model/dtos_models"
 	"github.com/betine97/back-project.git/src/model/service"
 	"github.com/betine97/back-project.git/src/view"
 	"github.com/gofiber/fiber/v2"
@@ -281,7 +282,7 @@ func (ctl *Controller) GetItemPedidoByID(ctx *fiber.Ctx) error {
 func (ctl *Controller) CreateItemPedido(ctx *fiber.Ctx) error {
 	zap.L().Info("Starting create item pedido controller")
 
-	var request modelDtos.CreateItemPedidoRequest
+	var request dtos_models.CreateItemPedidoRequest
 
 	// Parse JSON body
 	if err := ctx.BodyParser(&request); err != nil {
