@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	"github.com/betine97/back-project.git/src/controller/dtos"
+	dtos_controllers "github.com/betine97/back-project.git/src/controller/dtos_controllers"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -30,7 +30,7 @@ func init() {
 func UserValidationMiddleware(ctx *fiber.Ctx) error {
 	zap.L().Info("Starting user validation")
 
-	var createUser dtos.CreateUser
+	var createUser dtos_controllers.CreateUser
 	data := ctx.Body()
 
 	err := ValidateUnexpectedFields(ctx, data)

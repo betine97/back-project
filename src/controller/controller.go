@@ -6,7 +6,7 @@ import (
 
 	"github.com/betine97/back-project.git/cmd/config"
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	"github.com/betine97/back-project.git/src/controller/dtos"
+	dtos_controllers "github.com/betine97/back-project.git/src/controller/dtos_controllers"
 	"github.com/betine97/back-project.git/src/model/service"
 	"github.com/betine97/back-project.git/src/view"
 	"github.com/gofiber/fiber/v2"
@@ -50,7 +50,7 @@ type Controller struct {
 
 func (ctl *Controller) CreateUser(ctx *fiber.Ctx) error {
 
-	createUser := ctx.Locals("createUser").(dtos.CreateUser)
+	createUser := ctx.Locals("createUser").(dtos_controllers.CreateUser)
 
 	resp, err := ctl.service.CreateUserService(createUser)
 	if err != nil {
@@ -71,7 +71,7 @@ func (ctl *Controller) LoginUser(ctx *fiber.Ctx) error {
 
 	zap.L().Info("Starting user login")
 
-	var user dtos.UserLogin
+	var user dtos_controllers.UserLogin
 
 	if err := ctx.BodyParser(&user); err != nil {
 		zap.L().Error("Error reading request data", zap.Error(err))
@@ -112,7 +112,7 @@ func (ctl *Controller) RequestOtherService(ctx *fiber.Ctx) error {
 	})
 }
 
-func GenerateToken(user dtos.UserLogin) (string, *exceptions.RestErr) {
+func GenerateToken(user dtos_controllers.UserLogin) (string, *exceptions.RestErr) {
 
 	claims := jwt.MapClaims{
 		"email": user.Email,

@@ -2,8 +2,8 @@ package service
 
 import (
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	"github.com/betine97/back-project.git/src/controller/dtos"
-	modelDtos "github.com/betine97/back-project.git/src/model/dtos"
+	dtos_controllers "github.com/betine97/back-project.git/src/controller/dtos_controllers"
+	dtos_models "github.com/betine97/back-project.git/src/model/dtos_models"
 	entity "github.com/betine97/back-project.git/src/model/entitys"
 	"github.com/betine97/back-project.git/src/model/persistence"
 	"github.com/betine97/back-project.git/src/model/service/crypto"
@@ -11,22 +11,22 @@ import (
 )
 
 type ServiceInterface interface {
-	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
-	LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr)
+	CreateUserService(request dtos_controllers.CreateUser) (*entity.User, *exceptions.RestErr)
+	LoginUserService(request dtos_controllers.UserLogin) (bool, *exceptions.RestErr)
 
-	GetAllFornecedoresService() (*modelDtos.FornecedorListResponse, *exceptions.RestErr)
+	GetAllFornecedoresService() (*dtos_models.FornecedorListResponse, *exceptions.RestErr)
 
-	GetAllProductsService() (*modelDtos.ProductListResponse, *exceptions.RestErr)
-	GetProductByIDService(id int) (*modelDtos.ProductResponse, *exceptions.RestErr)
+	GetAllProductsService() (*dtos_models.ProductListResponse, *exceptions.RestErr)
+	GetProductByIDService(id int) (*dtos_models.ProductResponse, *exceptions.RestErr)
 
-	GetAllPedidosService() (*modelDtos.PedidoListResponse, *exceptions.RestErr)
-	GetPedidoByIDService(id int) (*modelDtos.PedidoResponse, *exceptions.RestErr)
+	GetAllPedidosService() (*dtos_models.PedidoListResponse, *exceptions.RestErr)
+	GetPedidoByIDService(id int) (*dtos_models.PedidoResponse, *exceptions.RestErr)
 
-	GetAllItemPedidosService() (*modelDtos.ItemPedidoListResponse, *exceptions.RestErr)
-	GetItemPedidoByIDService(id int) (*modelDtos.ItemPedidoResponse, *exceptions.RestErr)
-	CreateItemPedidoService(request modelDtos.CreateItemPedidoRequest) (*modelDtos.ItemPedidoResponse, *exceptions.RestErr)
+	GetAllItemPedidosService() (*dtos_models.ItemPedidoListResponse, *exceptions.RestErr)
+	GetItemPedidoByIDService(id int) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr)
+	CreateItemPedidoService(request dtos_models.CreateItemPedidoRequest) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr)
 
-	GetAllHisCmvPrcMargeService() (*modelDtos.HisCmvPrcMargeListResponse, *exceptions.RestErr)
+	GetAllHisCmvPrcMargeService() (*dtos_models.HisCmvPrcMargeListResponse, *exceptions.RestErr)
 }
 
 type Service struct {
@@ -45,7 +45,7 @@ func NewServiceInstance(crypto crypto.CryptoInterface, db persistence.Persistenc
 
 //---------------------------------
 
-func (srv *Service) LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr) {
+func (srv *Service) LoginUserService(request dtos_controllers.UserLogin) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting login service")
 
 	user := srv.db.GetUser(request.Email)
@@ -65,7 +65,7 @@ func (srv *Service) LoginUserService(request dtos.UserLogin) (bool, *exceptions.
 	return true, nil
 }
 
-func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr) {
+func (srv *Service) CreateUserService(request dtos_controllers.CreateUser) (*entity.User, *exceptions.RestErr) {
 	zap.L().Info("Starting user creation service")
 
 	emailExists := srv.db.GetUser(request.Email)
@@ -93,7 +93,7 @@ func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.User, *e
 	return user, nil
 }
 
-func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.User {
+func buildUserEntity(request dtos_controllers.CreateUser, hashedPassword string) *entity.User {
 	return &entity.User{
 		FirstName: request.FirstName,
 		LastName:  request.LastName,
@@ -107,7 +107,7 @@ func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.Use
 
 //---------------------------------
 
-func (srv *Service) GetAllFornecedoresService() (*modelDtos.FornecedorListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllFornecedoresService() (*dtos_models.FornecedorListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all fornecedores service")
 
 	fornecedores, err := srv.db.GetAllFornecedores()
@@ -116,9 +116,9 @@ func (srv *Service) GetAllFornecedoresService() (*modelDtos.FornecedorListRespon
 		return nil, exceptions.NewInternalServerError("Error retrieving fornecedores")
 	}
 
-	fornecedorResponses := make([]modelDtos.FornecedorResponse, len(fornecedores))
+	fornecedorResponses := make([]dtos_models.FornecedorResponse, len(fornecedores))
 	for i, fornecedor := range fornecedores {
-		fornecedorResponses[i] = modelDtos.FornecedorResponse{
+		fornecedorResponses[i] = dtos_models.FornecedorResponse{
 			ID:           fornecedor.ID,
 			Nome:         fornecedor.Nome,
 			Telefone:     fornecedor.Telefone,
@@ -132,7 +132,7 @@ func (srv *Service) GetAllFornecedoresService() (*modelDtos.FornecedorListRespon
 		}
 	}
 
-	response := &modelDtos.FornecedorListResponse{
+	response := &dtos_models.FornecedorListResponse{
 		Fornecedores: fornecedorResponses,
 		Total:        len(fornecedores),
 	}
@@ -145,7 +145,7 @@ func (srv *Service) GetAllFornecedoresService() (*modelDtos.FornecedorListRespon
 
 //---------------------------------
 
-func (srv *Service) GetAllProductsService() (*modelDtos.ProductListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllProductsService() (*dtos_models.ProductListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all products service")
 
 	products, err := srv.db.GetAllProducts()
@@ -154,9 +154,9 @@ func (srv *Service) GetAllProductsService() (*modelDtos.ProductListResponse, *ex
 		return nil, exceptions.NewInternalServerError("Error retrieving products")
 	}
 
-	productResponses := make([]modelDtos.ProductResponse, len(products))
+	productResponses := make([]dtos_models.ProductResponse, len(products))
 	for i, product := range products {
-		productResponses[i] = modelDtos.ProductResponse{
+		productResponses[i] = dtos_models.ProductResponse{
 			ID:            product.ID,
 			CodigoBarra:   product.CodigoBarra,
 			NomeProduto:   product.NomeProduto,
@@ -171,7 +171,7 @@ func (srv *Service) GetAllProductsService() (*modelDtos.ProductListResponse, *ex
 		}
 	}
 
-	response := &modelDtos.ProductListResponse{
+	response := &dtos_models.ProductListResponse{
 		Products: productResponses,
 		Total:    len(productResponses),
 		Page:     1,
@@ -182,7 +182,7 @@ func (srv *Service) GetAllProductsService() (*modelDtos.ProductListResponse, *ex
 	return response, nil
 }
 
-func (srv *Service) GetProductByIDService(id int) (*modelDtos.ProductResponse, *exceptions.RestErr) {
+func (srv *Service) GetProductByIDService(id int) (*dtos_models.ProductResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get product by ID service", zap.Int("id", id))
 
 	product, err := srv.db.GetProductByID(id)
@@ -191,7 +191,7 @@ func (srv *Service) GetProductByIDService(id int) (*modelDtos.ProductResponse, *
 		return nil, exceptions.NewNotFoundError("Product not found")
 	}
 
-	response := &modelDtos.ProductResponse{
+	response := &dtos_models.ProductResponse{
 		ID:            product.ID,
 		CodigoBarra:   product.CodigoBarra,
 		NomeProduto:   product.NomeProduto,
@@ -213,7 +213,7 @@ func (srv *Service) GetProductByIDService(id int) (*modelDtos.ProductResponse, *
 
 //---------------------------------
 
-func (srv *Service) GetAllPedidosService() (*modelDtos.PedidoListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllPedidosService() (*dtos_models.PedidoListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all pedidos service")
 
 	pedidos, err := srv.db.GetAllPedidos()
@@ -222,9 +222,9 @@ func (srv *Service) GetAllPedidosService() (*modelDtos.PedidoListResponse, *exce
 		return nil, exceptions.NewInternalServerError("Error retrieving pedidos")
 	}
 
-	pedidoResponses := make([]modelDtos.PedidoResponse, len(pedidos))
+	pedidoResponses := make([]dtos_models.PedidoResponse, len(pedidos))
 	for i, pedido := range pedidos {
-		pedidoResponses[i] = modelDtos.PedidoResponse{
+		pedidoResponses[i] = dtos_models.PedidoResponse{
 			ID:           pedido.ID,
 			IDFornecedor: pedido.IDFornecedor,
 			DataPedido:   pedido.DataPedido,
@@ -237,7 +237,7 @@ func (srv *Service) GetAllPedidosService() (*modelDtos.PedidoListResponse, *exce
 		}
 	}
 
-	response := &modelDtos.PedidoListResponse{
+	response := &dtos_models.PedidoListResponse{
 		Pedidos: pedidoResponses,
 		Total:   len(pedidos),
 	}
@@ -246,7 +246,7 @@ func (srv *Service) GetAllPedidosService() (*modelDtos.PedidoListResponse, *exce
 	return response, nil
 }
 
-func (srv *Service) GetPedidoByIDService(id int) (*modelDtos.PedidoResponse, *exceptions.RestErr) {
+func (srv *Service) GetPedidoByIDService(id int) (*dtos_models.PedidoResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get pedido by ID service", zap.Int("id", id))
 
 	pedido, err := srv.db.GetPedidoByID(id)
@@ -255,7 +255,7 @@ func (srv *Service) GetPedidoByIDService(id int) (*modelDtos.PedidoResponse, *ex
 		return nil, exceptions.NewNotFoundError("Pedido not found")
 	}
 
-	response := &modelDtos.PedidoResponse{
+	response := &dtos_models.PedidoResponse{
 		ID:           pedido.ID,
 		IDFornecedor: pedido.IDFornecedor,
 		DataPedido:   pedido.DataPedido,
@@ -275,7 +275,7 @@ func (srv *Service) GetPedidoByIDService(id int) (*modelDtos.PedidoResponse, *ex
 
 //---------------------------------
 
-func (srv *Service) GetAllItemPedidosService() (*modelDtos.ItemPedidoListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllItemPedidosService() (*dtos_models.ItemPedidoListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all item pedidos service")
 
 	itemPedidos, err := srv.db.GetAllItemPedidos()
@@ -284,9 +284,9 @@ func (srv *Service) GetAllItemPedidosService() (*modelDtos.ItemPedidoListRespons
 		return nil, exceptions.NewInternalServerError("Error retrieving item pedidos")
 	}
 
-	itemPedidoResponses := make([]modelDtos.ItemPedidoResponse, len(itemPedidos))
+	itemPedidoResponses := make([]dtos_models.ItemPedidoResponse, len(itemPedidos))
 	for i, itemPedido := range itemPedidos {
-		itemPedidoResponses[i] = modelDtos.ItemPedidoResponse{
+		itemPedidoResponses[i] = dtos_models.ItemPedidoResponse{
 			IDItem:        itemPedido.IDItem,
 			IDPedido:      itemPedido.IDPedido,
 			IDProduto:     itemPedido.IDProduto,
@@ -296,7 +296,7 @@ func (srv *Service) GetAllItemPedidosService() (*modelDtos.ItemPedidoListRespons
 		}
 	}
 
-	response := &modelDtos.ItemPedidoListResponse{
+	response := &dtos_models.ItemPedidoListResponse{
 		ItemPedidos: itemPedidoResponses,
 		Total:       len(itemPedidos),
 	}
@@ -305,7 +305,7 @@ func (srv *Service) GetAllItemPedidosService() (*modelDtos.ItemPedidoListRespons
 	return response, nil
 }
 
-func (srv *Service) GetItemPedidoByIDService(id int) (*modelDtos.ItemPedidoResponse, *exceptions.RestErr) {
+func (srv *Service) GetItemPedidoByIDService(id int) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get item pedido by ID service", zap.Int("id", id))
 
 	itemPedido, err := srv.db.GetItemPedidoByID(id)
@@ -314,7 +314,7 @@ func (srv *Service) GetItemPedidoByIDService(id int) (*modelDtos.ItemPedidoRespo
 		return nil, exceptions.NewNotFoundError("Item pedido not found")
 	}
 
-	response := &modelDtos.ItemPedidoResponse{
+	response := &dtos_models.ItemPedidoResponse{
 		IDItem:        itemPedido.IDItem,
 		IDPedido:      itemPedido.IDPedido,
 		IDProduto:     itemPedido.IDProduto,
@@ -327,7 +327,7 @@ func (srv *Service) GetItemPedidoByIDService(id int) (*modelDtos.ItemPedidoRespo
 	return response, nil
 }
 
-func (srv *Service) CreateItemPedidoService(request modelDtos.CreateItemPedidoRequest) (*modelDtos.ItemPedidoResponse, *exceptions.RestErr) {
+func (srv *Service) CreateItemPedidoService(request dtos_models.CreateItemPedidoRequest) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting create item pedido service", zap.Int("id_pedido", request.IDPedido), zap.Int("id_produto", request.IDProduto))
 
 	// Validar se o pedido existe
@@ -364,7 +364,7 @@ func (srv *Service) CreateItemPedidoService(request modelDtos.CreateItemPedidoRe
 	}
 
 	// Criar response
-	response := &modelDtos.ItemPedidoResponse{
+	response := &dtos_models.ItemPedidoResponse{
 		IDItem:        itemPedido.IDItem,
 		IDPedido:      itemPedido.IDPedido,
 		IDProduto:     itemPedido.IDProduto,
@@ -381,7 +381,7 @@ func (srv *Service) CreateItemPedidoService(request modelDtos.CreateItemPedidoRe
 
 //---------------------------------
 
-func (srv *Service) GetAllHisCmvPrcMargeService() (*modelDtos.HisCmvPrcMargeListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllHisCmvPrcMargeService() (*dtos_models.HisCmvPrcMargeListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all his cmv prc marge service")
 
 	hisCmvPrcMarge, err := srv.db.GetAllHisCmvPrcMarge()
@@ -390,9 +390,9 @@ func (srv *Service) GetAllHisCmvPrcMargeService() (*modelDtos.HisCmvPrcMargeList
 		return nil, exceptions.NewInternalServerError("Error retrieving his cmv prc marge")
 	}
 
-	hisCmvPrcMargeResponses := make([]modelDtos.HisCmvPrcMargeResponse, len(hisCmvPrcMarge))
+	hisCmvPrcMargeResponses := make([]dtos_models.HisCmvPrcMargeResponse, len(hisCmvPrcMarge))
 	for i, hisCmvPrcMarge := range hisCmvPrcMarge {
-		hisCmvPrcMargeResponses[i] = modelDtos.HisCmvPrcMargeResponse{
+		hisCmvPrcMargeResponses[i] = dtos_models.HisCmvPrcMargeResponse{
 			ID:           hisCmvPrcMarge.ID,
 			IDProduto:    hisCmvPrcMarge.IDProduto,
 			PrecoVenda:   hisCmvPrcMarge.PrecoVenda,
@@ -402,7 +402,7 @@ func (srv *Service) GetAllHisCmvPrcMargeService() (*modelDtos.HisCmvPrcMargeList
 		}
 	}
 
-	response := &modelDtos.HisCmvPrcMargeListResponse{
+	response := &dtos_models.HisCmvPrcMargeListResponse{
 		HisCmvPrcMarge: hisCmvPrcMargeResponses,
 		Total:          len(hisCmvPrcMarge),
 	}
