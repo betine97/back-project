@@ -1,10 +1,3 @@
-INSERT INTO fornecedores (
-    id, nome, telefone, email, endereco, cidade, estado, cep, data_cadastro, status
-) VALUES
-(1, 'Distribuidora Pet Brasil', '(11) 3000-4000', 'contato@petbrasil.com.br', 'Rua dos Animais, 100', 'São Paulo', 'SP', '01000-000', '2024-01-15', 'ativo'),
-(2, 'Mega Pet Supply', '(21) 4000-5000', 'vendas@megapetsupply.com.br', 'Av. Pet Lovers, 500', 'Rio de Janeiro', 'RJ', '20000-000', '2024-03-10', 'ativo');
-
-
 INSERT INTO produtos (id, codigo_barra, nome_produto, sku, categoria, destinado_para, variacao, marca, descricao, status, preco_venda)
 VALUES
 (1, '7891234560001', 'Ração Premium Cães Adultos', 'RAC-PREM-CAES-ADU', 'Alimentação', 'Cães', 'Raças Grandes', 'Golden', 'Ração completa para cães adultos de grande porte.', 'ativo', 189.90),
@@ -20,42 +13,27 @@ VALUES
 
 
 
-INSERT INTO pedido_compra (
-    id_pedido, id_fornecedor, data_pedido, data_entrega, valor_frete, custo_pedido, valor_total, descricao_pedido, status
+INSERT INTO pedidos (
+    id_fornecedor, data_pedido, data_entrega, valor_frete, custo_pedido, valor_total, descricao_pedido, status
 ) VALUES
-(1, 1, '2024-07-01', '2024-07-05', 150.00, 3850.00, 4000.00, 'Compra mensal de rações, brinquedos e suplementos.', 'entregue'),
-(2, 2, '2024-07-01', '2024-07-06', 120.00, 2650.00, 2770.00, 'Compra de produtos para gatos e aves.', 'entregue'),
-(3, 1, '2024-07-10', '2024-07-15', 130.00, 1800.00, 1930.00, 'Reposição de brinquedos.', 'em transporte'),
-(4, 2, '2024-07-12', '2024-07-17', 140.00, 2100.00, 2240.00, 'Compra emergencial de suplementos.', 'realizado'),
-(5, 1, '2024-07-14', '2024-07-20', 160.00, 3200.00, 3360.00, 'Estoque de rações premium.', 'cancelado'),
-(6, 2, '2024-07-15', '2024-07-21', 110.00, 2500.00, 2610.00, 'Produtos de higiene animal.', 'recusado');
-
-
+(1, '2024-08-01', '2024-08-05', 100.00, 2000.00, 2100.00, 'Compra de ração e acessórios para cães.', 'entregue'),
+(2, '2024-08-02', '2024-08-06', 150.00, 3000.00, 3150.00, 'Compra de produtos para gatos e aves.', 'em transporte');
 
 INSERT INTO item_pedido (
     id_item, id_pedido, id_produto, quantidade, preco_unitario, subtotal
 ) VALUES
 (1, 1, 1, 30, 100.00, 3000.00),
-(2, 1, 4, 40, 10.00, 400.00),
-(3, 1, 3, 15, 30.00, 450.00),
-(4, 2, 2, 25, 55.00, 1375.00),
-(5, 2, 5, 20, 15.00, 300.00),
-(6, 2, 7, 10, 40.00, 400.00),
-(7, 2, 9, 20, 29.00, 580.00),
--- Itens para o pedido 3
-(8, 3, 4, 50, 12.00, 600.00),
-(9, 3, 7, 30, 40.00, 1200.00),
--- Itens para o pedido 4
-(10, 4, 3, 20, 30.00, 600.00),
-(11, 4, 6, 25, 50.00, 1250.00),
--- Itens para o pedido 5
-(12, 5, 1, 40, 100.00, 4000.00),
-(13, 5, 5, 30, 15.00, 450.00),
--- Itens para o pedido 6
-(14, 6, 2, 35, 55.00, 1925.00),
-(15, 6, 9, 15, 29.00, 435.00);
+(2, 1, 4, 40, 10.00, 400.00);
+
 
 INSERT INTO produto_precos (id_produto, preco_venda, cmv, margem, data_registro)
-VALUES
-(1, 150.00, 90.00, 40.00, '2024-01-15'),
-(2, 200.00, 120.00, 40.00, '2024-02-10');
+SELECT 
+    ip.id_produto,                                 -- Captura o id_produto da tabela item_pedido
+    p.preco_venda,                                 -- Captura o preco_venda da tabela produtos
+    SUM(ip.preco_unitario * ip.quantidade) AS cmv,  -- Calcula o cmv (custo das mercadorias vendidas)
+    (p.preco_venda - SUM(ip.preco_unitario * ip.quantidade)) / p.preco_venda AS margem,  -- Calcula a margem
+    ped.data_pedido                                -- Data de registro capturada da tabela pedidos
+FROM item_pedido ip
+JOIN produtos p ON ip.id_produto = p.id          -- Relacionamento com a tabela produtos
+JOIN pedidos ped ON ip.id_pedido = ped.id_pedido -- Relacionamento com a tabela pedidos
+GROUP BY ip.id_produto, p.preco_venda, ped.data_pedido;

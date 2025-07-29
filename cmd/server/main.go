@@ -32,15 +32,11 @@ func main() {
 
 	tablesUsers := loadSQLFile("sql/users/table_users.sql")
 	tablesOpr := loadSQLFile("sql/opr/tables_opr.sql")
-	valuesOpr := loadSQLFile("sql/opr/inserts_opr.sql")
-	trigger_margem := loadSQLFile("sql/opr/trigger_margem.sql")
 
 	fmt.Println("Scripts carregados com sucesso!")
 
-	executeRawSQL(db, tablesUsers, "Tabelas de produtos criadas com sucesso!")
+	executeRawSQL(db, tablesUsers, "Tabelas de usuários criada com sucesso!")
 	executeRawSQL(db, tablesOpr, "Tabelas de operações criadas com sucesso!")
-	executeRawSQL(db, valuesOpr, "Valores de operações inseridos com sucesso!")
-	executeRawSQL(db, trigger_margem, "Trigger de operações inserido com sucesso!")
 
 	userController := initDependencies(db)
 

@@ -14,19 +14,9 @@ type ServiceInterface interface {
 	CreateUserService(request dtos_controllers.CreateUser) (*entity.User, *exceptions.RestErr)
 	LoginUserService(request dtos_controllers.UserLogin) (bool, *exceptions.RestErr)
 
-	GetAllFornecedoresService() (*dtos_models.FornecedorListResponse, *exceptions.RestErr)
-
 	GetAllProductsService() (*dtos_models.ProductListResponse, *exceptions.RestErr)
-	GetProductByIDService(id int) (*dtos_models.ProductResponse, *exceptions.RestErr)
 
 	GetAllPedidosService() (*dtos_models.PedidoListResponse, *exceptions.RestErr)
-	GetPedidoByIDService(id int) (*dtos_models.PedidoResponse, *exceptions.RestErr)
-
-	GetAllItemPedidosService() (*dtos_models.ItemPedidoListResponse, *exceptions.RestErr)
-	GetItemPedidoByIDService(id int) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr)
-	CreateItemPedidoService(request dtos_models.CreateItemPedidoRequest) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr)
-
-	GetAllHisCmvPrcMargeService() (*dtos_models.HisCmvPrcMargeListResponse, *exceptions.RestErr)
 }
 
 type Service struct {
@@ -41,7 +31,7 @@ func NewServiceInstance(crypto crypto.CryptoInterface, db persistence.Persistenc
 	}
 }
 
-// Funções de usuário
+// FUNÇÕES DE USUÁRIO
 
 //---------------------------------
 
@@ -103,45 +93,7 @@ func buildUserEntity(request dtos_controllers.CreateUser, hashedPassword string)
 	}
 }
 
-// Funções de fornecedores
-
-//---------------------------------
-
-func (srv *Service) GetAllFornecedoresService() (*dtos_models.FornecedorListResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get all fornecedores service")
-
-	fornecedores, err := srv.db.GetAllFornecedores()
-	if err != nil {
-		zap.L().Error("Error getting fornecedores from database", zap.Error(err))
-		return nil, exceptions.NewInternalServerError("Error retrieving fornecedores")
-	}
-
-	fornecedorResponses := make([]dtos_models.FornecedorResponse, len(fornecedores))
-	for i, fornecedor := range fornecedores {
-		fornecedorResponses[i] = dtos_models.FornecedorResponse{
-			ID:           fornecedor.ID,
-			Nome:         fornecedor.Nome,
-			Telefone:     fornecedor.Telefone,
-			Email:        fornecedor.Email,
-			Endereco:     fornecedor.Endereco,
-			Cidade:       fornecedor.Cidade,
-			Estado:       fornecedor.Estado,
-			CEP:          fornecedor.CEP,
-			DataCadastro: fornecedor.DataCadastro,
-			Status:       fornecedor.Status,
-		}
-	}
-
-	response := &dtos_models.FornecedorListResponse{
-		Fornecedores: fornecedorResponses,
-		Total:        len(fornecedores),
-	}
-
-	zap.L().Info("Successfully retrieved all fornecedores", zap.Int("count", len(fornecedores)))
-	return response, nil
-}
-
-// Funções de produtos
+// FUNÇÕES DE PRODUTOS
 
 //---------------------------------
 
@@ -182,34 +134,7 @@ func (srv *Service) GetAllProductsService() (*dtos_models.ProductListResponse, *
 	return response, nil
 }
 
-func (srv *Service) GetProductByIDService(id int) (*dtos_models.ProductResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get product by ID service", zap.Int("id", id))
-
-	product, err := srv.db.GetProductByID(id)
-	if err != nil {
-		zap.L().Error("Product not found", zap.Error(err), zap.Int("id", id))
-		return nil, exceptions.NewNotFoundError("Product not found")
-	}
-
-	response := &dtos_models.ProductResponse{
-		ID:            product.ID,
-		CodigoBarra:   product.CodigoBarra,
-		NomeProduto:   product.NomeProduto,
-		SKU:           product.SKU,
-		Categoria:     product.Categoria,
-		DestinadoPara: product.DestinadoPara,
-		Variacao:      product.Variacao,
-		Marca:         product.Marca,
-		Descricao:     product.Descricao,
-		Status:        product.Status,
-		PrecoVenda:    product.PrecoVenda,
-	}
-
-	zap.L().Info("Successfully retrieved product by ID", zap.Int("id", id))
-	return response, nil
-}
-
-// Funções de pedidos
+// FUNÇÕES DE PEDIDOS
 
 //---------------------------------
 
@@ -225,7 +150,7 @@ func (srv *Service) GetAllPedidosService() (*dtos_models.PedidoListResponse, *ex
 	pedidoResponses := make([]dtos_models.PedidoResponse, len(pedidos))
 	for i, pedido := range pedidos {
 		pedidoResponses[i] = dtos_models.PedidoResponse{
-			ID:           pedido.ID,
+			ID:           pedido.IDPedido,
 			IDFornecedor: pedido.IDFornecedor,
 			DataPedido:   pedido.DataPedido,
 			DataEntrega:  pedido.DataEntrega,
@@ -243,170 +168,5 @@ func (srv *Service) GetAllPedidosService() (*dtos_models.PedidoListResponse, *ex
 	}
 
 	zap.L().Info("Successfully retrieved all pedidos", zap.Int("count", len(pedidos)))
-	return response, nil
-}
-
-func (srv *Service) GetPedidoByIDService(id int) (*dtos_models.PedidoResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get pedido by ID service", zap.Int("id", id))
-
-	pedido, err := srv.db.GetPedidoByID(id)
-	if err != nil {
-		zap.L().Error("Pedido not found", zap.Error(err), zap.Int("id", id))
-		return nil, exceptions.NewNotFoundError("Pedido not found")
-	}
-
-	response := &dtos_models.PedidoResponse{
-		ID:           pedido.ID,
-		IDFornecedor: pedido.IDFornecedor,
-		DataPedido:   pedido.DataPedido,
-		DataEntrega:  pedido.DataEntrega,
-		ValorFrete:   pedido.ValorFrete,
-		CustoPedido:  pedido.CustoPedido,
-		ValorTotal:   pedido.ValorTotal,
-		Descricao:    pedido.Descricao,
-		Status:       pedido.Status,
-	}
-
-	zap.L().Info("Successfully retrieved pedido by ID", zap.Int("id", id))
-	return response, nil
-}
-
-// Funções de itens de pedidos
-
-//---------------------------------
-
-func (srv *Service) GetAllItemPedidosService() (*dtos_models.ItemPedidoListResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get all item pedidos service")
-
-	itemPedidos, err := srv.db.GetAllItemPedidos()
-	if err != nil {
-		zap.L().Error("Error getting item pedidos from database", zap.Error(err))
-		return nil, exceptions.NewInternalServerError("Error retrieving item pedidos")
-	}
-
-	itemPedidoResponses := make([]dtos_models.ItemPedidoResponse, len(itemPedidos))
-	for i, itemPedido := range itemPedidos {
-		itemPedidoResponses[i] = dtos_models.ItemPedidoResponse{
-			IDItem:        itemPedido.IDItem,
-			IDPedido:      itemPedido.IDPedido,
-			IDProduto:     itemPedido.IDProduto,
-			Quantidade:    itemPedido.Quantidade,
-			PrecoUnitario: itemPedido.PrecoUnitario,
-			Subtotal:      itemPedido.Subtotal,
-		}
-	}
-
-	response := &dtos_models.ItemPedidoListResponse{
-		ItemPedidos: itemPedidoResponses,
-		Total:       len(itemPedidos),
-	}
-
-	zap.L().Info("Successfully retrieved all item pedidos", zap.Int("count", len(itemPedidos)))
-	return response, nil
-}
-
-func (srv *Service) GetItemPedidoByIDService(id int) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get item pedido by ID service", zap.Int("id", id))
-
-	itemPedido, err := srv.db.GetItemPedidoByID(id)
-	if err != nil {
-		zap.L().Error("Item pedido not found", zap.Error(err), zap.Int("id", id))
-		return nil, exceptions.NewNotFoundError("Item pedido not found")
-	}
-
-	response := &dtos_models.ItemPedidoResponse{
-		IDItem:        itemPedido.IDItem,
-		IDPedido:      itemPedido.IDPedido,
-		IDProduto:     itemPedido.IDProduto,
-		Quantidade:    itemPedido.Quantidade,
-		PrecoUnitario: itemPedido.PrecoUnitario,
-		Subtotal:      itemPedido.Subtotal,
-	}
-
-	zap.L().Info("Successfully retrieved item pedido by ID", zap.Int("id", id))
-	return response, nil
-}
-
-func (srv *Service) CreateItemPedidoService(request dtos_models.CreateItemPedidoRequest) (*dtos_models.ItemPedidoResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting create item pedido service", zap.Int("id_pedido", request.IDPedido), zap.Int("id_produto", request.IDProduto))
-
-	// Validar se o pedido existe
-	_, err := srv.db.GetPedidoByID(request.IDPedido)
-	if err != nil {
-		zap.L().Error("Pedido not found", zap.Error(err), zap.Int("id_pedido", request.IDPedido))
-		return nil, exceptions.NewNotFoundError("Pedido not found")
-	}
-
-	// Validar se o produto existe
-	_, err = srv.db.GetProductByID(request.IDProduto)
-	if err != nil {
-		zap.L().Error("Product not found", zap.Error(err), zap.Int("id_produto", request.IDProduto))
-		return nil, exceptions.NewNotFoundError("Product not found")
-	}
-
-	// Calcular subtotal
-	subtotal := float64(request.Quantidade) * request.PrecoUnitario
-
-	// Criar entidade
-	itemPedido := entity.ItemPedido{
-		IDPedido:      request.IDPedido,
-		IDProduto:     request.IDProduto,
-		Quantidade:    request.Quantidade,
-		PrecoUnitario: request.PrecoUnitario,
-		Subtotal:      subtotal,
-	}
-
-	// Salvar no banco
-	dbErr := srv.db.CreateItemPedido(itemPedido)
-	if dbErr != nil {
-		zap.L().Error("Error creating item pedido in database", zap.Error(dbErr))
-		return nil, exceptions.NewInternalServerError("Error creating item pedido")
-	}
-
-	// Criar response
-	response := &dtos_models.ItemPedidoResponse{
-		IDItem:        itemPedido.IDItem,
-		IDPedido:      itemPedido.IDPedido,
-		IDProduto:     itemPedido.IDProduto,
-		Quantidade:    itemPedido.Quantidade,
-		PrecoUnitario: itemPedido.PrecoUnitario,
-		Subtotal:      itemPedido.Subtotal,
-	}
-
-	zap.L().Info("Item pedido created successfully", zap.Int("id_item", itemPedido.IDItem))
-	return response, nil
-}
-
-// Funções de histórico de cmv, preço e margem
-
-//---------------------------------
-
-func (srv *Service) GetAllHisCmvPrcMargeService() (*dtos_models.HisCmvPrcMargeListResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get all his cmv prc marge service")
-
-	hisCmvPrcMarge, err := srv.db.GetAllHisCmvPrcMarge()
-	if err != nil {
-		zap.L().Error("Error getting his cmv prc marge from database", zap.Error(err))
-		return nil, exceptions.NewInternalServerError("Error retrieving his cmv prc marge")
-	}
-
-	hisCmvPrcMargeResponses := make([]dtos_models.HisCmvPrcMargeResponse, len(hisCmvPrcMarge))
-	for i, hisCmvPrcMarge := range hisCmvPrcMarge {
-		hisCmvPrcMargeResponses[i] = dtos_models.HisCmvPrcMargeResponse{
-			ID:           hisCmvPrcMarge.ID,
-			IDProduto:    hisCmvPrcMarge.IDProduto,
-			PrecoVenda:   hisCmvPrcMarge.PrecoVenda,
-			Cmv:          hisCmvPrcMarge.Cmv,
-			Margem:       hisCmvPrcMarge.Margem,
-			DataRegistro: hisCmvPrcMarge.DataRegistro,
-		}
-	}
-
-	response := &dtos_models.HisCmvPrcMargeListResponse{
-		HisCmvPrcMarge: hisCmvPrcMargeResponses,
-		Total:          len(hisCmvPrcMarge),
-	}
-
-	zap.L().Info("Successfully retrieved all his cmv prc marge", zap.Int("count", len(hisCmvPrcMargeResponses)))
 	return response, nil
 }

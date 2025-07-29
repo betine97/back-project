@@ -1,5 +1,5 @@
 CREATE TABLE fornecedores (
-    id INT PRIMARY KEY,
+    id_fornecedor INT PRIMARY KEY AUTOINCREMENT,
     nome VARCHAR(255) NOT NULL,
     telefone VARCHAR(20),
     email VARCHAR(150),
@@ -12,7 +12,7 @@ CREATE TABLE fornecedores (
 );
 
 CREATE TABLE produtos (
-    id INT PRIMARY KEY,               -- ID do produto (chave primária)
+    id_produto INT PRIMARY KEY AUTOINCREMENT,               -- ID do produto (chave primária)
     codigo_barra VARCHAR(20) NOT NULL, -- Código de barras do produto
     nome_produto VARCHAR(255) NOT NULL, -- Nome do produto
     sku VARCHAR(50) NOT NULL,          -- SKU do produto
@@ -25,8 +25,8 @@ CREATE TABLE produtos (
     preco_venda DECIMAL(10, 2) NOT NULL -- Preço de venda do produto
 );
 
-CREATE TABLE pedido_compra (
-    id_pedido INT PRIMARY KEY,                -- ID do pedido de compra
+CREATE TABLE pedidos (
+    id_pedido INT PRIMARY KEY AUTOINCREMENT,                -- ID do pedido de compra
     id_fornecedor INT,                        -- ID do fornecedor (referência à tabela fornecedores)
     data_pedido DATE NOT NULL,                -- Data do pedido
     data_entrega DATE NOT NULL,               -- Data de entrega
@@ -39,6 +39,7 @@ CREATE TABLE pedido_compra (
 );
 
 CREATE TABLE item_pedido (
+    id_registro INT AUTOINCREMENT,
     id_item INT PRIMARY KEY,                 -- ID do item do pedido
     id_pedido INT,                           -- ID do pedido (referência à tabela `pedido_compra`)
     id_produto INT,                          -- ID do produto (referência à tabela `produtos`)
@@ -50,7 +51,7 @@ CREATE TABLE item_pedido (
 );
 
 CREATE TABLE produto_precos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,         -- ID do registro
+    id_registro INTEGER PRIMARY KEY AUTOINCREMENT,         -- ID do registro
     id_produto INT,                            -- ID do produto (referência à tabela produtos)
     preco_venda DECIMAL(10, 2) NOT NULL,       -- Preço de venda do produto
     cmv DECIMAL(10, 2) NOT NULL,               -- Custo das mercadorias vendidas (CMV)

@@ -13,7 +13,3 @@ type Produto struct {
 	Status        string  `gorm:"not null" json:"status"`
 	PrecoVenda    float64 `gorm:"column:preco_venda;not null" json:"preco_venda"`
 }
-
-func (Produto) TableName() string {
-	return "produtos"
-}

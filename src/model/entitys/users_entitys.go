@@ -8,7 +8,3 @@ type User struct {
 	City      string `gorm:"not null" json:"city"`
 	Password  string `gorm:"not null" json:"-"`
 }
-
-func (User) TableName() string {
-	return "users"
-}
