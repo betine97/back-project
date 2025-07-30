@@ -1,11 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"os"
-	"strings"
-
 	"github.com/betine97/back-project.git/cmd/config"
 	"github.com/betine97/back-project.git/src/controller"
 	"github.com/betine97/back-project.git/src/controller/middlewares"
@@ -27,16 +22,6 @@ func main() {
 	if err != nil {
 		zap.L().Fatal("Failed to connect to database", zap.Error(err))
 	}
-
-	fmt.Println("✅ Banco de dados criado em memória com sucesso!")
-
-	tablesUsers := loadSQLFile("sql/users/table_users.sql")
-	tablesOpr := loadSQLFile("sql/opr/tables_opr.sql")
-
-	fmt.Println("Scripts carregados com sucesso!")
-
-	executeRawSQL(db, tablesUsers, "Tabelas de usuários criada com sucesso!")
-	executeRawSQL(db, tablesOpr, "Tabelas de operações criadas com sucesso!")
 
 	userController := initDependencies(db)
 
@@ -74,24 +59,4 @@ func initDependencies(database *gorm.DB) controller.ControllerInterface {
 	persistence := persistence.NewDBConnection(database)
 	service := service.NewServiceInstance(cryptoService, persistence)
 	return controller.NewControllerInstance(service)
-}
-
-func loadSQLFile(filepath string) string {
-	content, err := os.ReadFile(filepath)
-	if err != nil {
-		log.Fatalf("Erro ao ler o arquivo SQL %s: %v", filepath, err)
-	}
-	return string(content)
-}
-
-func executeRawSQL(db *gorm.DB, sqlContent string, successMessage string) {
-	if err := db.Exec(sqlContent).Error; err != nil {
-		// Se a tabela já existe, apenas avisa mas não para a execução
-		if strings.Contains(err.Error(), "already exists") {
-			fmt.Println("⚠️  Tabela já existe, continuando...")
-			return
-		}
-		log.Fatalf("Erro ao executar SQL: %v", err)
-	}
-	fmt.Println("✅ " + successMessage)
 }
