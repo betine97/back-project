@@ -9,13 +9,13 @@ import (
 	"os"
 	"strconv"
 
+	entity "github.com/betine97/back-project.git/src/model/entitys"
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/driver/mysql"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -99,18 +99,29 @@ func NewDatabaseConnection() (*gorm.DB, error) {
 
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
-	case "sqlite":
-		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		if err != nil {
 			return nil, err
 		}
-
-		// Tabelas serão criadas via scripts SQL no main.go
 
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", Cfg.DBDriver)
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func NewDatabaseConnectionForTenant(tenant entity.Tenants) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true",
+		tenant.DBUser,
+		tenant.DBPassword,
+		tenant.DBHost,
+		tenant.DBName)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}

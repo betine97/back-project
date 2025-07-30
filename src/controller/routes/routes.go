@@ -13,8 +13,7 @@ func SetupRoutes(app *fiber.App, userController controller.ControllerInterface, 
 	app.Post("/login", userController.LoginUser)
 
 	// Protected routes
-	api := app.Group("/api", middlewares.JWTProtected())
-	api.Get("/otherservice", middlewares.JWTClaimsRequired("role", "user"), userController.RequestOtherService)
+	api := app.Group("/api", middlewares.JWTProtected(), middlewares.DatabaseConnectionMiddleware(db, redisClient))
 
 	fornecedores := api.Group("/fornecedores")
 	fornecedores.Get("/", userController.GetAllFornecedores)

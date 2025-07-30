@@ -1,15 +1,10 @@
 package controller
 
 import (
-	"time"
-
-	"github.com/betine97/back-project.git/cmd/config"
-	"github.com/betine97/back-project.git/cmd/config/exceptions"
 	dtos "github.com/betine97/back-project.git/src/model/dtos"
 	"github.com/betine97/back-project.git/src/model/service"
 	"github.com/betine97/back-project.git/src/view"
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt"
 	"go.uber.org/zap"
 )
 
@@ -75,7 +70,7 @@ func (ctl *Controller) LoginUser(ctx *fiber.Ctx) error {
 		})
 	}
 
-	_, err := ctl.service.LoginUserService(user)
+	token, err := ctl.service.LoginUserService(user)
 	if err != nil {
 		zap.L().Error("Error when logging in", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -83,21 +78,10 @@ func (ctl *Controller) LoginUser(ctx *fiber.Ctx) error {
 		})
 	}
 
-	token, err := GenerateToken(user)
-	if err != nil {
-		zap.L().Error("Error generating token", zap.Error(err))
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	zap.L().Info("Login successfully")
-	ctx.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Login successfully",
+	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Login successful",
 		"token":   token,
 	})
-
-	return nil
 }
 
 func (ctl *Controller) RequestOtherService(ctx *fiber.Ctx) error {
@@ -105,24 +89,6 @@ func (ctl *Controller) RequestOtherService(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Service found successfully",
 	})
-}
-
-func GenerateToken(user dtos.UserLogin) (string, *exceptions.RestErr) {
-
-	claims := jwt.MapClaims{
-		"email": user.Email,
-		"exp":   time.Now().Add(time.Hour * 24).Unix(),
-		"role":  "user",
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	tokenString, err := token.SignedString(config.PrivateKey)
-	if err != nil {
-		zap.L().Error("Error signing token", zap.Error(err))
-		return "", exceptions.NewInternalServerError("Internal server error")
-	}
-
-	return tokenString, nil
 }
 
 // FUNÇÕES DE FORNECEDORES ------------------------------------------------------------------------------------------------------------------------------------

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
 	dtos "github.com/betine97/back-project.git/src/model/dtos"
@@ -11,12 +13,13 @@ import (
 	"github.com/betine97/back-project.git/src/model/persistence"
 	"github.com/betine97/back-project.git/src/model/service/crypto"
 	redis "github.com/go-redis/redis/v8"
+	"github.com/golang-jwt/jwt"
 	"go.uber.org/zap"
 )
 
 type ServiceInterface interface {
 	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
-	LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr)
+	LoginUserService(request dtos.UserLogin) (string, *exceptions.RestErr)
 
 	GetAllFornecedoresService() (*dtos.FornecedorListResponse, *exceptions.RestErr)
 	CreateFornecedorService(request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr)
@@ -49,26 +52,26 @@ func NewServiceInstance(crypto crypto.CryptoInterface, db persistence.Persistenc
 
 // FUNÇÕES DE USUÁRIO ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr) {
+func (srv *Service) LoginUserService(request dtos.UserLogin) (string, *exceptions.RestErr) {
 	zap.L().Info("Starting login service")
 
+	// Verifica se o usuário existe
 	user := srv.db.GetUser(request.Email)
-
 	if user.Email == "" {
 		zap.L().Warn("User not found", zap.String("email", request.Email))
-		return false, exceptions.NewNotFoundError("Account not found")
+		return "", exceptions.NewNotFoundError("Account not found")
 	}
 
-	_, err := srv.crypto.CheckPassword(request.Password, user.Password)
-	if err != nil {
+	// Verifica a senha
+	if _, err := srv.crypto.CheckPassword(request.Password, user.Password); err != nil {
 		zap.L().Warn("Incorrect password", zap.String("email", request.Email))
-		return false, exceptions.NewUnauthorizedRequestError("The password entered is incorrect")
+		return "", exceptions.NewUnauthorizedRequestError("The password entered is incorrect")
 	}
 
 	// Verifica se o Redis está funcionando
 	if err := srv.redis.Ping(ctx).Err(); err != nil {
 		zap.L().Error("Redis is not reachable", zap.Error(err))
-		return false, exceptions.NewInternalServerError("Redis is not reachable")
+		return "", exceptions.NewInternalServerError("Redis is not reachable")
 	}
 
 	// Tenta obter os dados do usuário do Redis
@@ -78,36 +81,39 @@ func (srv *Service) LoginUserService(request dtos.UserLogin) (bool, *exceptions.
 		// Dados não estão em cache, consulte a tabela tenants
 		tenant := srv.db.GetTenantByUserID(user.ID)
 		if tenant == nil {
-			return false, exceptions.NewInternalServerError("Tenant not found")
+			return "", exceptions.NewInternalServerError("Tenant not found")
 		}
 
 		// Armazene os dados no Redis
 		tenantJSON, err := json.Marshal(tenant)
 		if err != nil {
 			zap.L().Error("Error marshaling tenant to JSON", zap.Error(err))
-			return false, exceptions.NewInternalServerError("Error storing tenant in cache")
+			return "", exceptions.NewInternalServerError("Error storing tenant in cache")
 		}
 
 		if err := srv.redis.Set(ctx, cacheKey, tenantJSON, 0).Err(); err != nil {
 			zap.L().Error("Error storing tenant in Redis", zap.Error(err))
 		}
-
 	} else if err != nil {
 		zap.L().Error("Error retrieving from Redis", zap.Error(err))
-		return false, exceptions.NewInternalServerError("Error retrieving from cache")
+		return "", exceptions.NewInternalServerError("Error retrieving from cache")
 	}
 
 	// Deserializa o JSON de volta para a estrutura Tenant
 	var cachedTenant entity.Tenants
 	if err := json.Unmarshal([]byte(tenantJSON), &cachedTenant); err != nil {
 		zap.L().Error("Error unmarshaling tenant from JSON", zap.Error(err))
-		return false, exceptions.NewInternalServerError("Error retrieving tenant data")
+		return "", exceptions.NewInternalServerError("Error retrieving tenant data")
 	}
 
-	// Agora você pode usar cachedTenant
+	// Gera o token com o ID do usuário
+	token, err := GenerateToken(user.ID, user.Email)
+	if err != nil {
+		return "", exceptions.NewInternalServerError("Error generating token")
+	}
 
 	zap.L().Info("Login successful", zap.String("email", request.Email), zap.String("db_info", tenantJSON))
-	return true, nil
+	return token, nil
 }
 
 func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr) {
@@ -136,6 +142,24 @@ func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.User, *e
 
 	zap.L().Info("User created successfully", zap.String("email", user.Email))
 	return user, nil
+}
+
+func GenerateToken(userID uint, email string) (string, *exceptions.RestErr) {
+	claims := jwt.MapClaims{
+		"email": email,
+		"id":    userID,                                // Agora estamos usando o ID do usuário diretamente
+		"exp":   time.Now().Add(time.Hour * 24).Unix(), // Definindo a expiração do token
+		"role":  "user",                                // Você pode adicionar outros campos conforme necessário
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)              // Use o método de assinatura que você está usando
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET"))) // Use a chave secreta do .env
+	if err != nil {
+		zap.L().Error("Error signing token", zap.Error(err))
+		return "", exceptions.NewInternalServerError("Internal server error")
+	}
+
+	return tokenString, nil
 }
 
 func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.User {
