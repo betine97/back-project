@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	dtos_controllers "github.com/betine97/back-project.git/src/controller/dtos_controllers"
+	dtos "github.com/betine97/back-project.git/src/model/dtos"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -30,7 +30,7 @@ func init() {
 func UserValidationMiddleware(ctx *fiber.Ctx) error {
 	zap.L().Info("Starting user validation")
 
-	var createUser dtos_controllers.CreateUser
+	var createUser dtos.CreateUser
 	data := ctx.Body()
 
 	err := ValidateUnexpectedFields(ctx, data)
@@ -88,11 +88,15 @@ func ValidateUnexpectedFields(ctx *fiber.Ctx, data []byte) error {
 	}
 
 	expectedFields := map[string]bool{
-		"first_name": true,
-		"last_name":  true,
-		"email":      true,
-		"city":       true,
-		"password":   true,
+		"first_name":   true,
+		"last_name":    true,
+		"email":        true,
+		"nome_empresa": true, // Novo campo
+		"categoria":    true, // Novo campo
+		"segmento":     true, // Novo campo
+		"city":         true,
+		"state":        true, // Adicionei o campo state também
+		"password":     true,
 	}
 
 	var unexpectedFields []string

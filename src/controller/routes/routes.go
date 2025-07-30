@@ -9,16 +9,25 @@ import (
 
 func SetupRoutes(app *fiber.App, userController controller.ControllerInterface, db *gorm.DB) {
 	// Public routes
-	app.Post("/register", middlewares.UserValidationMiddleware, userController.CreateUser)
+	app.Post("/cadastro", middlewares.UserValidationMiddleware, userController.CreateUser)
 	app.Post("/login", userController.LoginUser)
 
 	// Protected routes
 	api := app.Group("/api", middlewares.JWTProtected())
 	api.Get("/otherservice", middlewares.JWTClaimsRequired("role", "user"), userController.RequestOtherService)
 
+	fornecedores := api.Group("/fornecedores")
+	fornecedores.Get("/", userController.GetAllFornecedores)
+	fornecedores.Post("/", userController.CreateFornecedor)
+	fornecedores.Put("changestatus/:id", userController.ChangeStatusFornecedor)
+	fornecedores.Put("changefields/:id", userController.UpdateFornecedorField)
+	fornecedores.Delete("/:id", userController.DeleteFornecedor)
+
 	// Protected product routes (com autenticação)
-	products := api.Group("/produtos")
-	products.Get("/", userController.GetAllProducts)
+	produtos := api.Group("/produtos")
+	produtos.Get("/", userController.GetAllProducts)
+	produtos.Post("/", userController.CreateProduct)
+	produtos.Delete("/:id", userController.DeleteProduct)
 
 	// Protected pedidos routes (com autenticação)
 	pedidos := api.Group("/pedidos")

@@ -1,3 +1,4 @@
+// cmd/config/config.go
 package config
 
 import (
@@ -8,6 +9,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/go-redis/redis/v8"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -17,9 +20,10 @@ import (
 )
 
 var (
-	Cfg        *Config
-	PrivateKey *rsa.PrivateKey
-	Logger     *zap.Logger
+	Cfg         *Config
+	PrivateKey  *rsa.PrivateKey
+	Logger      *zap.Logger
+	RedisClient *redis.Client
 )
 
 type Config struct {
@@ -50,7 +54,6 @@ func init() {
 		DBHost:        os.Getenv("DB_HOST"),
 		DBPort:        os.Getenv("DB_PORT"),
 		DBUser:        os.Getenv("DB_USER"),
-		DBPassword:    os.Getenv("DB_PASSWORD"),
 		DBName:        os.Getenv("DB_NAME"),
 		WebServerPort: os.Getenv("WEB_SERVER_PORT"),
 		JWTSecret:     os.Getenv("JWT_SECRET"),
@@ -70,6 +73,10 @@ func init() {
 	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	config.EncoderConfig.StacktraceKey = ""
 
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr: os.Getenv("REDIS_ADDR"), // Endereço do Redis
+	})
+
 	Logger, err = config.Build()
 	if err != nil {
 		log.Fatalf("Error initializing zap logger: %v", err)
@@ -83,7 +90,7 @@ func NewDatabaseConnection() (*gorm.DB, error) {
 
 	switch Cfg.DBDriver {
 	case "mysql":
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 			Cfg.DBUser,
 			Cfg.DBPassword,
 			Cfg.DBHost,

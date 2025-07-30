@@ -57,6 +57,6 @@ func main() {
 func initDependencies(database *gorm.DB) controller.ControllerInterface {
 	cryptoService := &crypto.Crypto{}
 	persistence := persistence.NewDBConnection(database)
-	service := service.NewServiceInstance(cryptoService, persistence)
+	service := service.NewServiceInstance(cryptoService, persistence, config.RedisClient)
 	return controller.NewControllerInstance(service)
 }

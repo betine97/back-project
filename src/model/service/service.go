@@ -1,41 +1,55 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+
 	"github.com/betine97/back-project.git/cmd/config/exceptions"
-	dtos_controllers "github.com/betine97/back-project.git/src/controller/dtos_controllers"
-	dtos_models "github.com/betine97/back-project.git/src/model/dtos_models"
+	dtos "github.com/betine97/back-project.git/src/model/dtos"
 	entity "github.com/betine97/back-project.git/src/model/entitys"
 	"github.com/betine97/back-project.git/src/model/persistence"
 	"github.com/betine97/back-project.git/src/model/service/crypto"
+	redis "github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
 )
 
 type ServiceInterface interface {
-	CreateUserService(request dtos_controllers.CreateUser) (*entity.User, *exceptions.RestErr)
-	LoginUserService(request dtos_controllers.UserLogin) (bool, *exceptions.RestErr)
+	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
+	LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr)
 
-	GetAllProductsService() (*dtos_models.ProductListResponse, *exceptions.RestErr)
+	GetAllFornecedoresService() (*dtos.FornecedorListResponse, *exceptions.RestErr)
+	CreateFornecedorService(request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr)
+	ChangeStatusFornecedorService(id string) (bool, *exceptions.RestErr)
+	UpdateFornecedorFieldService(id string, campo string, valor string) (bool, *exceptions.RestErr)
+	DeleteFornecedorService(id string) (bool, *exceptions.RestErr)
 
-	GetAllPedidosService() (*dtos_models.PedidoListResponse, *exceptions.RestErr)
+	GetAllProductsService() (*dtos.ProductListResponse, *exceptions.RestErr)
+	CreateProductService(request dtos.CreateProductRequest) (bool, *exceptions.RestErr)
+	DeleteProductService(id string) (bool, *exceptions.RestErr)
+
+	GetAllPedidosService() (*dtos.PedidoListResponse, *exceptions.RestErr)
 }
+
+var ctx = context.Background()
 
 type Service struct {
 	crypto crypto.CryptoInterface
 	db     persistence.PersistenceInterface
+	redis  *redis.Client
 }
 
-func NewServiceInstance(crypto crypto.CryptoInterface, db persistence.PersistenceInterface) ServiceInterface {
+func NewServiceInstance(crypto crypto.CryptoInterface, db persistence.PersistenceInterface, redisClient *redis.Client) ServiceInterface {
 	return &Service{
 		crypto: crypto,
 		db:     db,
+		redis:  redisClient,
 	}
 }
 
-// FUNÇÕES DE USUÁRIO
+// FUNÇÕES DE USUÁRIO ------------------------------------------------------------------------------------------------------------------------------------
 
-//---------------------------------
-
-func (srv *Service) LoginUserService(request dtos_controllers.UserLogin) (bool, *exceptions.RestErr) {
+func (srv *Service) LoginUserService(request dtos.UserLogin) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting login service")
 
 	user := srv.db.GetUser(request.Email)
@@ -51,11 +65,52 @@ func (srv *Service) LoginUserService(request dtos_controllers.UserLogin) (bool, 
 		return false, exceptions.NewUnauthorizedRequestError("The password entered is incorrect")
 	}
 
-	zap.L().Info("Successful login", zap.String("email", request.Email))
+	// Verifica se o Redis está funcionando
+	if err := srv.redis.Ping(ctx).Err(); err != nil {
+		zap.L().Error("Redis is not reachable", zap.Error(err))
+		return false, exceptions.NewInternalServerError("Redis is not reachable")
+	}
+
+	// Tenta obter os dados do usuário do Redis
+	cacheKey := fmt.Sprintf("user:%d:db_info", user.ID)
+	tenantJSON, err := srv.redis.Get(ctx, cacheKey).Result()
+	if err == redis.Nil {
+		// Dados não estão em cache, consulte a tabela tenants
+		tenant := srv.db.GetTenantByUserID(user.ID)
+		if tenant == nil {
+			return false, exceptions.NewInternalServerError("Tenant not found")
+		}
+
+		// Armazene os dados no Redis
+		tenantJSON, err := json.Marshal(tenant)
+		if err != nil {
+			zap.L().Error("Error marshaling tenant to JSON", zap.Error(err))
+			return false, exceptions.NewInternalServerError("Error storing tenant in cache")
+		}
+
+		if err := srv.redis.Set(ctx, cacheKey, tenantJSON, 0).Err(); err != nil {
+			zap.L().Error("Error storing tenant in Redis", zap.Error(err))
+		}
+
+	} else if err != nil {
+		zap.L().Error("Error retrieving from Redis", zap.Error(err))
+		return false, exceptions.NewInternalServerError("Error retrieving from cache")
+	}
+
+	// Deserializa o JSON de volta para a estrutura Tenant
+	var cachedTenant entity.Tenants
+	if err := json.Unmarshal([]byte(tenantJSON), &cachedTenant); err != nil {
+		zap.L().Error("Error unmarshaling tenant from JSON", zap.Error(err))
+		return false, exceptions.NewInternalServerError("Error retrieving tenant data")
+	}
+
+	// Agora você pode usar cachedTenant
+
+	zap.L().Info("Login successful", zap.String("email", request.Email), zap.String("db_info", tenantJSON))
 	return true, nil
 }
 
-func (srv *Service) CreateUserService(request dtos_controllers.CreateUser) (*entity.User, *exceptions.RestErr) {
+func (srv *Service) CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr) {
 	zap.L().Info("Starting user creation service")
 
 	emailExists := srv.db.GetUser(request.Email)
@@ -83,21 +138,139 @@ func (srv *Service) CreateUserService(request dtos_controllers.CreateUser) (*ent
 	return user, nil
 }
 
-func buildUserEntity(request dtos_controllers.CreateUser, hashedPassword string) *entity.User {
+func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.User {
 	return &entity.User{
-		FirstName: request.FirstName,
-		LastName:  request.LastName,
-		Email:     request.Email,
-		City:      request.City,
-		Password:  hashedPassword,
+		FirstName:   request.FirstName,
+		LastName:    request.LastName,
+		Email:       request.Email,
+		NomeEmpresa: request.NomeEmpresa,
+		Categoria:   request.Categoria,
+		Segmento:    request.Segmento,
+		City:        request.City,
+		State:       request.State,
+		Password:    hashedPassword,
 	}
 }
 
-// FUNÇÕES DE PRODUTOS
+// FUNÇÕES DE FORNECEDORES ------------------------------------------------------------------------------------------------------------------------------------
 
-//---------------------------------
+func (srv *Service) GetAllFornecedoresService() (*dtos.FornecedorListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get all fornecedores service")
 
-func (srv *Service) GetAllProductsService() (*dtos_models.ProductListResponse, *exceptions.RestErr) {
+	fornecedores, err := srv.db.GetAllFornecedores()
+	if err != nil {
+		zap.L().Error("Error getting fornecedores from database", zap.Error(err))
+		return nil, exceptions.NewInternalServerError("Error retrieving fornecedores")
+	}
+
+	fornecedorResponses := make([]dtos.FornecedorResponse, len(fornecedores))
+	for i, fornecedor := range fornecedores {
+		fornecedorResponses[i] = dtos.FornecedorResponse{
+			ID:           fornecedor.ID,
+			Nome:         fornecedor.Nome,
+			Telefone:     fornecedor.Telefone,
+			Email:        fornecedor.Email,
+			Cidade:       fornecedor.Cidade,
+			Estado:       fornecedor.Estado,
+			Status:       fornecedor.Status,
+			DataCadastro: fornecedor.DataCadastro, // Certifique-se de incluir este campo se necessário
+		}
+	}
+
+	response := &dtos.FornecedorListResponse{
+		Fornecedores: fornecedorResponses,
+		Total:        len(fornecedores),
+	}
+
+	zap.L().Info("Successfully retrieved all fornecedores", zap.Int("count", len(fornecedores)))
+	return response, nil
+}
+func (srv *Service) CreateFornecedorService(request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting fornecedor creation service")
+
+	fornecedor := entity.BuildFornecedorEntity(request)
+
+	dbErr := srv.db.CreateFornecedor(*fornecedor)
+	if dbErr != nil {
+		zap.L().Error("Error creating fornecedor in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Fornecedor created successfully", zap.String("fornecedor", fornecedor.Nome))
+	return true, nil
+}
+
+func (srv *Service) ChangeStatusFornecedorService(id string) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting change status fornecedor service")
+
+	// Recupera o fornecedor pelo ID
+	fornecedor, err := srv.db.GetFornecedorById(id)
+	if err != nil {
+		zap.L().Error("Error getting fornecedor from database", zap.Error(err))
+		return false, exceptions.NewInternalServerError("Error retrieving fornecedor")
+	}
+
+	// Alterna o status
+	if fornecedor.Status == "Ativo" {
+		fornecedor.Status = "Inativo"
+	} else {
+		fornecedor.Status = "Ativo"
+	}
+
+	// Atualiza o fornecedor no banco de dados
+	dbErr := srv.db.UpdateFornecedor(*fornecedor)
+	if dbErr != nil {
+		zap.L().Error("Error updating fornecedor in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Status fornecedor changed successfully", zap.String("fornecedor", fornecedor.Nome))
+	return true, nil
+}
+
+func (srv *Service) UpdateFornecedorFieldService(id string, campo string, valor string) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting update fornecedor field service")
+
+	// Verifica se o campo é válido
+	validFields := map[string]bool{
+		"nome":     true,
+		"telefone": true,
+		"email":    true,
+		"cidade":   true,
+		"estado":   true,
+	}
+
+	if !validFields[campo] {
+		return false, exceptions.NewBadRequestError("Invalid field to update")
+	}
+
+	// Atualiza o campo no banco de dados
+	dbErr := srv.db.UpdateFornecedorField(id, campo, valor)
+	if dbErr != nil {
+		zap.L().Error("Error updating fornecedor field in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Fornecedor field updated successfully", zap.String("id", id), zap.String("campo", campo), zap.String("valor", valor))
+	return true, nil
+}
+
+func (srv *Service) DeleteFornecedorService(id string) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting delete fornecedor service")
+
+	dbErr := srv.db.DeleteFornecedor(id)
+	if dbErr != nil {
+		zap.L().Error("Error deleting fornecedor in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Fornecedor deleted successfully", zap.String("fornecedor", id))
+	return true, nil
+}
+
+// FUNÇÕES DE PRODUTOS ------------------------------------------------------------------------------------------------------------------------------------
+
+func (srv *Service) GetAllProductsService() (*dtos.ProductListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all products service")
 
 	products, err := srv.db.GetAllProducts()
@@ -106,10 +279,10 @@ func (srv *Service) GetAllProductsService() (*dtos_models.ProductListResponse, *
 		return nil, exceptions.NewInternalServerError("Error retrieving products")
 	}
 
-	productResponses := make([]dtos_models.ProductResponse, len(products))
+	productResponses := make([]dtos.ProductResponse, len(products))
 	for i, product := range products {
-		productResponses[i] = dtos_models.ProductResponse{
-			ID:            product.ID,
+		productResponses[i] = dtos.ProductResponse{
+			ID:            product.IDProduto,
 			CodigoBarra:   product.CodigoBarra,
 			NomeProduto:   product.NomeProduto,
 			SKU:           product.SKU,
@@ -123,7 +296,7 @@ func (srv *Service) GetAllProductsService() (*dtos_models.ProductListResponse, *
 		}
 	}
 
-	response := &dtos_models.ProductListResponse{
+	response := &dtos.ProductListResponse{
 		Products: productResponses,
 		Total:    len(productResponses),
 		Page:     1,
@@ -134,11 +307,37 @@ func (srv *Service) GetAllProductsService() (*dtos_models.ProductListResponse, *
 	return response, nil
 }
 
-// FUNÇÕES DE PEDIDOS
+func (srv *Service) CreateProductService(request dtos.CreateProductRequest) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting product creation service")
 
-//---------------------------------
+	product := entity.BuildProductEntity(request)
 
-func (srv *Service) GetAllPedidosService() (*dtos_models.PedidoListResponse, *exceptions.RestErr) {
+	dbErr := srv.db.CreateProduct(*product)
+	if dbErr != nil {
+		zap.L().Error("Error creating product in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Product created successfully", zap.String("product", product.NomeProduto))
+	return true, nil
+}
+
+func (srv *Service) DeleteProductService(id string) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting delete product service")
+
+	dbErr := srv.db.DeleteProduct(id)
+	if dbErr != nil {
+		zap.L().Error("Error deleting product in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Product deleted successfully", zap.String("product", id))
+	return true, nil
+}
+
+// FUNÇÕES DE PEDIDOS ------------------------------------------------------------------------------------------------------------------------------------
+
+func (srv *Service) GetAllPedidosService() (*dtos.PedidoListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all pedidos service")
 
 	pedidos, err := srv.db.GetAllPedidos()
@@ -147,9 +346,9 @@ func (srv *Service) GetAllPedidosService() (*dtos_models.PedidoListResponse, *ex
 		return nil, exceptions.NewInternalServerError("Error retrieving pedidos")
 	}
 
-	pedidoResponses := make([]dtos_models.PedidoResponse, len(pedidos))
+	pedidoResponses := make([]dtos.PedidoResponse, len(pedidos))
 	for i, pedido := range pedidos {
-		pedidoResponses[i] = dtos_models.PedidoResponse{
+		pedidoResponses[i] = dtos.PedidoResponse{
 			ID:           pedido.IDPedido,
 			IDFornecedor: pedido.IDFornecedor,
 			DataPedido:   pedido.DataPedido,
@@ -162,7 +361,7 @@ func (srv *Service) GetAllPedidosService() (*dtos_models.PedidoListResponse, *ex
 		}
 	}
 
-	response := &dtos_models.PedidoListResponse{
+	response := &dtos.PedidoListResponse{
 		Pedidos: pedidoResponses,
 		Total:   len(pedidos),
 	}

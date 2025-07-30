@@ -1,4 +1,4 @@
-package dtos_models
+package dtos
 
 type PedidoResponse struct {
 	ID           int     `json:"id_pedido"`
