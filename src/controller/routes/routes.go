@@ -4,16 +4,15 @@ import (
 	"github.com/betine97/back-project.git/src/controller"
 	"github.com/betine97/back-project.git/src/controller/middlewares"
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
 )
 
-func SetupRoutes(app *fiber.App, userController controller.ControllerInterface, db *gorm.DB) {
+func SetupRoutes(app *fiber.App, userController controller.ControllerInterface) {
 	// Public routes
 	app.Post("/cadastro", middlewares.UserValidationMiddleware, userController.CreateUser)
 	app.Post("/login", userController.LoginUser)
 
 	// Protected routes
-	api := app.Group("/api", middlewares.JWTProtected(), middlewares.DatabaseConnectionMiddleware(db, redisClient))
+	api := app.Group("/api", middlewares.JWTProtected(), middlewares.DatabaseExtractIdUser())
 
 	fornecedores := api.Group("/fornecedores")
 	fornecedores.Get("/", userController.GetAllFornecedores)

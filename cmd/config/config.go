@@ -4,12 +4,12 @@ package config
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 
-	entity "github.com/betine97/back-project.git/src/model/entitys"
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
@@ -107,26 +107,52 @@ func NewDatabaseConnection() (*gorm.DB, error) {
 		return nil, fmt.Errorf("unsupported database driver: %s", Cfg.DBDriver)
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	return db, nil
 }
 
-func NewDatabaseConnectionForTenant(tenant entity.Tenants) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true",
-		tenant.DBUser,
-		tenant.DBPassword,
-		tenant.DBHost,
-		tenant.DBName)
-
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+func ConnectionDBClients() (map[string]*gorm.DB, error) {
+	var dbConnections = make(map[string]*gorm.DB)
+	file, err := os.Open("../config/dbclients.json")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error opening dbclients.json: %v", err)
+	}
+	defer file.Close()
+
+	var clients struct {
+		Clients []struct {
+			DB_CLIENT       int    `json:"DB_CLIENT"`
+			DB_DRIVER       string `json:"DB_DRIVER"`
+			DB_HOST         string `json:"DB_HOST"`
+			DB_PORT         int    `json:"DB_PORT"`
+			DB_USER         string `json:"DB_USER"`
+			DB_PASSWORD     string `json:"DB_PASSWORD"` // Adicione este campo
+			DB_NAME         string `json:"DB_NAME"`
+			WEB_SERVER_PORT int    `json:"WEB_SERVER_PORT"`
+		} `json:"clients"`
 	}
 
-	return db, nil
+	if err := json.NewDecoder(file).Decode(&clients); err != nil {
+		return nil, fmt.Errorf("error decoding dbclients.json: %v", err)
+	}
+
+	for _, client := range clients.Clients {
+		clientID := strconv.Itoa(client.DB_CLIENT) // Convertendo clientID para string
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+			client.DB_USER,
+			client.DB_PASSWORD,
+			client.DB_HOST,
+			client.DB_PORT,
+			client.DB_NAME)
+
+		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		if err != nil {
+			return nil, fmt.Errorf("error connecting to database %s: %v", clientID, err)
+		}
+
+		dbConnections["db_"+clientID] = db
+	}
+
+	return dbConnections, nil
 }
 
 // getEnvWithDefault returns environment variable value or default if not set
