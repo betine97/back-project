@@ -18,12 +18,17 @@ func main() {
 
 	_ = config.NewConfig()
 
-	db, err := config.NewDatabaseConnection()
+	dbmaster, err := config.NewDatabaseConnection()
 	if err != nil {
 		zap.L().Fatal("Failed to connect to database", zap.Error(err))
 	}
 
-	userController := initDependencies(db)
+	clientDB, err := config.ConnectionDBClients()
+	if err != nil {
+		zap.L().Fatal("Failed to connect to database", zap.Error(err))
+	}
+
+	userController := initDependencies(dbmaster, clientDB)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -46,7 +51,7 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
 	}))
 
-	routes.SetupRoutes(app, userController, db)
+	routes.SetupRoutes(app, userController)
 
 	if err := app.Listen(":8080"); err != nil {
 		zap.L().Fatal("Failed to start server", zap.Error(err))
@@ -54,9 +59,10 @@ func main() {
 
 }
 
-func initDependencies(database *gorm.DB) controller.ControllerInterface {
+func initDependencies(masterDB *gorm.DB, clientDB map[string]*gorm.DB) controller.ControllerInterface {
 	cryptoService := &crypto.Crypto{}
-	persistence := persistence.NewDBConnection(database)
-	service := service.NewServiceInstance(cryptoService, persistence, config.RedisClient)
+	persistenceDBMASTER := persistence.NewDBConnectionDBMaster(masterDB)
+	persistenceDBCLIENT := persistence.NewDBConnectionDBClient(clientDB)
+	service := service.NewServiceInstance(cryptoService, persistenceDBMASTER, persistenceDBCLIENT, config.RedisClient)
 	return controller.NewControllerInstance(service)
 }
