@@ -11,8 +11,8 @@ import (
 func CORSMiddleware() fiber.Handler {
 	cfg := config.NewConfig()
 
-	zap.L().Info("Configuring CORS middleware",
-		zap.String("allowed_origins", cfg.CORSOrigins))
+	zap.L().Info("🌐 Configurando middleware CORS",
+		zap.String("origens_permitidas", cfg.CORSOrigins))
 
 	return cors.New(cors.Config{
 		AllowOrigins:     cfg.CORSOrigins,
@@ -28,8 +28,8 @@ func CORSMiddleware() fiber.Handler {
 func CORSMiddlewareStrict() fiber.Handler {
 	cfg := config.NewConfig()
 
-	zap.L().Info("Configuring strict CORS middleware",
-		zap.String("allowed_origins", cfg.CORSOrigins))
+	zap.L().Info("🔒 Configurando middleware CORS restritivo",
+		zap.String("origens_permitidas", cfg.CORSOrigins))
 
 	return cors.New(cors.Config{
 		AllowOrigins:     cfg.CORSOrigins,

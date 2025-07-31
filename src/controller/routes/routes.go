@@ -7,6 +7,10 @@ import (
 )
 
 func SetupRoutes(app *fiber.App, userController controller.ControllerInterface) {
+	// Health check routes (sem autenticação)
+	app.Get("/health", userController.HealthCheck)
+	app.Get("/ready", userController.ReadinessCheck)
+
 	// Public routes
 	app.Post("/cadastro", middlewares.UserValidationMiddleware, userController.CreateUser)
 	app.Post("/login", userController.LoginUser)

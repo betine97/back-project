@@ -149,7 +149,9 @@ func ConnectionDBClients() (map[string]*gorm.DB, error) {
 			return nil, fmt.Errorf("error connecting to database %s: %v", clientID, err)
 		}
 
-		dbConnections["db_"+clientID] = db
+		key := "db_" + clientID
+		dbConnections[key] = db
+		log.Printf("✅ Conexão criada: %s -> %s", key, client.DB_NAME)
 	}
 
 	return dbConnections, nil

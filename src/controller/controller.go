@@ -15,16 +15,23 @@ func NewControllerInstance(serviceInterface service.ServiceInterface) Controller
 }
 
 type ControllerInterface interface {
+	// Health checks
+	HealthCheck(ctx *fiber.Ctx) error
+	ReadinessCheck(ctx *fiber.Ctx) error
+
+	// User management
 	CreateUser(ctx *fiber.Ctx) error
 	LoginUser(ctx *fiber.Ctx) error
 	RequestOtherService(ctx *fiber.Ctx) error
 
+	// Fornecedores
 	GetAllFornecedores(ctx *fiber.Ctx) error
 	CreateFornecedor(ctx *fiber.Ctx) error
 	ChangeStatusFornecedor(ctx *fiber.Ctx) error
 	UpdateFornecedorField(ctx *fiber.Ctx) error
 	DeleteFornecedor(ctx *fiber.Ctx) error
 
+	// Products
 	GetAllProducts(ctx *fiber.Ctx) error
 	CreateProduct(ctx *fiber.Ctx) error
 	DeleteProduct(ctx *fiber.Ctx) error
@@ -59,20 +66,20 @@ func (ctl *Controller) CreateUser(ctx *fiber.Ctx) error {
 
 func (ctl *Controller) LoginUser(ctx *fiber.Ctx) error {
 
-	zap.L().Info("Starting user login")
+	zap.L().Info("🔑 Iniciando processo de login")
 
 	var user dtos.UserLogin
 
 	if err := ctx.BodyParser(&user); err != nil {
-		zap.L().Error("Error reading request data", zap.Error(err))
+		zap.L().Error("❌ Erro ao ler dados de login", zap.Error(err))
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Unable to read request data",
+			"error": "Dados de login inválidos",
 		})
 	}
 
 	token, err := ctl.service.LoginUserService(user)
 	if err != nil {
-		zap.L().Error("Error when logging in", zap.Error(err))
+		zap.L().Error("❌ Erro durante login", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -94,17 +101,18 @@ func (ctl *Controller) RequestOtherService(ctx *fiber.Ctx) error {
 // FUNÇÕES DE FORNECEDORES ------------------------------------------------------------------------------------------------------------------------------------
 
 func (ctl *Controller) GetAllFornecedores(ctx *fiber.Ctx) error {
-	zap.L().Info("Starting get all fornecedores controller")
+	zap.L().Info("📋 Buscando todos os fornecedores")
 
-	fornecedores, err := ctl.service.GetAllFornecedoresService()
+	userID := ctx.Locals("userID").(string)
+	fornecedores, err := ctl.service.GetAllFornecedoresService(userID)
 	if err != nil {
-		zap.L().Error("Error getting all fornecedores", zap.Error(err))
+		zap.L().Error("❌ Erro ao buscar fornecedores", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	zap.L().Info("Successfully retrieved all fornecedores", zap.Int("count", len(fornecedores.Fornecedores)))
+	zap.L().Info("✅ Fornecedores recuperados com sucesso", zap.Int("total", len(fornecedores.Fornecedores)))
 	return ctx.Status(fiber.StatusOK).JSON(fornecedores)
 }
 
@@ -118,7 +126,8 @@ func (ctl *Controller) CreateFornecedor(ctx *fiber.Ctx) error {
 		})
 	}
 
-	success, err := ctl.service.CreateFornecedorService(fornecedor)
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.CreateFornecedorService(userID, fornecedor)
 	if err != nil {
 		zap.L().Error("Error creating fornecedor", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -142,7 +151,8 @@ func (ctl *Controller) ChangeStatusFornecedor(ctx *fiber.Ctx) error {
 
 	id := ctx.Params("id")
 
-	success, err := ctl.service.ChangeStatusFornecedorService(id)
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.ChangeStatusFornecedorService(userID, id)
 	if err != nil {
 		zap.L().Error("Error changing status fornecedor", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -174,7 +184,8 @@ func (ctl *Controller) UpdateFornecedorField(ctx *fiber.Ctx) error {
 		})
 	}
 
-	success, err := ctl.service.UpdateFornecedorFieldService(id, request.Campo, request.Valor)
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.UpdateFornecedorFieldService(userID, id, request.Campo, request.Valor)
 	if err != nil {
 		zap.L().Error("Error updating fornecedor field", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -198,7 +209,8 @@ func (ctl *Controller) DeleteFornecedor(ctx *fiber.Ctx) error {
 
 	id := ctx.Params("id")
 
-	success, err := ctl.service.DeleteFornecedorService(id)
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.DeleteFornecedorService(userID, id)
 	if err != nil {
 		zap.L().Error("Error deleting fornecedor", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -222,7 +234,8 @@ func (ctl *Controller) DeleteFornecedor(ctx *fiber.Ctx) error {
 func (ctl *Controller) GetAllProducts(ctx *fiber.Ctx) error {
 	zap.L().Info("Starting get all products controller")
 
-	products, err := ctl.service.GetAllProductsService()
+	userID := ctx.Locals("userID").(string)
+	products, err := ctl.service.GetAllProductsService(userID)
 	if err != nil {
 		zap.L().Error("Error getting all products", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -245,7 +258,8 @@ func (ctl *Controller) CreateProduct(ctx *fiber.Ctx) error {
 		})
 	}
 
-	success, err := ctl.service.CreateProductService(product)
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.CreateProductService(userID, product)
 	if err != nil {
 		zap.L().Error("Error creating product", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -269,7 +283,8 @@ func (ctl *Controller) DeleteProduct(ctx *fiber.Ctx) error {
 
 	id := ctx.Params("id")
 
-	success, err := ctl.service.DeleteProductService(id)
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.DeleteProductService(userID, id)
 	if err != nil {
 		zap.L().Error("Error deleting product", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -293,7 +308,8 @@ func (ctl *Controller) DeleteProduct(ctx *fiber.Ctx) error {
 func (ctl *Controller) GetAllPedidos(ctx *fiber.Ctx) error {
 	zap.L().Info("Starting get all pedidos controller")
 
-	pedidos, err := ctl.service.GetAllPedidosService()
+	userID := ctx.Locals("userID").(string)
+	pedidos, err := ctl.service.GetAllPedidosService(userID)
 	if err != nil {
 		zap.L().Error("Error getting all pedidos", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{

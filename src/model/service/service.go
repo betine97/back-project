@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/betine97/back-project.git/cmd/config"
@@ -13,7 +14,7 @@ import (
 	"github.com/betine97/back-project.git/src/model/persistence"
 	"github.com/betine97/back-project.git/src/model/service/crypto"
 	redis "github.com/go-redis/redis/v8"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"go.uber.org/zap"
 )
 
@@ -21,17 +22,17 @@ type ServiceInterface interface {
 	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
 	LoginUserService(request dtos.UserLogin) (string, *exceptions.RestErr)
 
-	GetAllFornecedoresService() (*dtos.FornecedorListResponse, *exceptions.RestErr)
-	CreateFornecedorService(request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr)
-	ChangeStatusFornecedorService(id string) (bool, *exceptions.RestErr)
-	UpdateFornecedorFieldService(id string, campo string, valor string) (bool, *exceptions.RestErr)
-	DeleteFornecedorService(id string) (bool, *exceptions.RestErr)
+	GetAllFornecedoresService(userID string) (*dtos.FornecedorListResponse, *exceptions.RestErr)
+	CreateFornecedorService(userID string, request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr)
+	ChangeStatusFornecedorService(userID string, id string) (bool, *exceptions.RestErr)
+	UpdateFornecedorFieldService(userID string, id string, campo string, valor string) (bool, *exceptions.RestErr)
+	DeleteFornecedorService(userID string, id string) (bool, *exceptions.RestErr)
 
-	GetAllProductsService() (*dtos.ProductListResponse, *exceptions.RestErr)
-	CreateProductService(request dtos.CreateProductRequest) (bool, *exceptions.RestErr)
-	DeleteProductService(id string) (bool, *exceptions.RestErr)
+	GetAllProductsService(userID string) (*dtos.ProductListResponse, *exceptions.RestErr)
+	CreateProductService(userID string, request dtos.CreateProductRequest) (bool, *exceptions.RestErr)
+	DeleteProductService(userID string, id string) (bool, *exceptions.RestErr)
 
-	GetAllPedidosService() (*dtos.PedidoListResponse, *exceptions.RestErr)
+	GetAllPedidosService(userID string) (*dtos.PedidoListResponse, *exceptions.RestErr)
 }
 
 var ctx = context.Background()
@@ -52,6 +53,20 @@ func NewServiceInstance(crypto crypto.CryptoInterface, dbmaster persistence.Pers
 	}
 }
 
+// getTenantContext é uma função auxiliar para criar contexto com tenantID baseado no userID
+func (srv *Service) getTenantContext(userID string) (context.Context, *exceptions.RestErr) {
+	userIDInt, _ := strconv.Atoi(userID)
+	tenant := srv.dbmaster.GetTenantByUserID(uint(userIDInt))
+	if tenant.ID == 0 {
+		zap.L().Error("Tenant not found for user", zap.String("userID", userID))
+		return nil, exceptions.NewInternalServerError("Tenant not found")
+	}
+
+	tenantID := strconv.Itoa(int(tenant.ID))
+	ctx := context.WithValue(context.Background(), "tenantID", tenantID)
+	return ctx, nil
+}
+
 // FUNÇÕES DE USUÁRIO ------------------------------------------------------------------------------------------------------------------------------------
 
 func (srv *Service) LoginUserService(request dtos.UserLogin) (string, *exceptions.RestErr) {
@@ -63,6 +78,8 @@ func (srv *Service) LoginUserService(request dtos.UserLogin) (string, *exception
 		zap.L().Warn("User not found", zap.String("email", request.Email))
 		return "", exceptions.NewNotFoundError("Account not found")
 	}
+
+	zap.L().Info("User found for login", zap.Uint("user_id", user.ID), zap.String("email", user.Email))
 
 	// Verifica a senha
 	if _, err := srv.crypto.CheckPassword(request.Password, user.Password); err != nil {
@@ -78,11 +95,17 @@ func (srv *Service) LoginUserService(request dtos.UserLogin) (string, *exception
 
 	// Tenta obter os dados do usuário do Redis
 	cacheKey := fmt.Sprintf("user:%d:db_info", user.ID)
+	zap.L().Info("Trying to get tenant from Redis", zap.String("cache_key", cacheKey))
 	tenantJSON, err := srv.redis.Get(ctx, cacheKey).Result()
 	if err == redis.Nil {
+		zap.L().Info("Tenant not found in Redis cache, searching in database")
 		// Dados não estão em cache, consulte a tabela tenants
+		zap.L().Info("Searching for tenant in database", zap.Uint("user_id", user.ID))
 		tenant := srv.dbmaster.GetTenantByUserID(user.ID)
-		if tenant == nil {
+		zap.L().Info("Tenant search result", zap.Uint("tenant_id", tenant.ID), zap.Uint("tenant_user_id", tenant.UserID))
+
+		if tenant.ID == 0 {
+			zap.L().Error("No tenant found for user", zap.Uint("user_id", user.ID))
 			return "", exceptions.NewInternalServerError("Tenant not found")
 		}
 
@@ -92,21 +115,28 @@ func (srv *Service) LoginUserService(request dtos.UserLogin) (string, *exception
 			zap.L().Error("Error marshaling tenant to JSON", zap.Error(err))
 			return "", exceptions.NewInternalServerError("Error storing tenant in cache")
 		}
+		zap.L().Info("Tenant marshaled to JSON", zap.String("tenant_json", string(tenantJSON)))
 
 		if err := srv.redis.Set(ctx, cacheKey, tenantJSON, 0).Err(); err != nil {
 			zap.L().Error("Error storing tenant in Redis", zap.Error(err))
+		} else {
+			zap.L().Info("Tenant stored in Redis successfully", zap.String("cache_key", cacheKey))
 		}
 	} else if err != nil {
 		zap.L().Error("Error retrieving from Redis", zap.Error(err))
 		return "", exceptions.NewInternalServerError("Error retrieving from cache")
+	} else {
+		zap.L().Info("Tenant found in Redis cache", zap.String("tenant_json", tenantJSON))
 	}
 
 	// Deserializa o JSON de volta para a estrutura Tenant
+	zap.L().Info("About to unmarshal tenant JSON", zap.String("tenant_json", tenantJSON))
 	var cachedTenant entity.Tenants
 	if err := json.Unmarshal([]byte(tenantJSON), &cachedTenant); err != nil {
-		zap.L().Error("Error unmarshaling tenant from JSON", zap.Error(err))
+		zap.L().Error("Error unmarshaling tenant from JSON", zap.String("tenant_json", tenantJSON), zap.Error(err))
 		return "", exceptions.NewInternalServerError("Error retrieving tenant data")
 	}
+	zap.L().Info("Tenant unmarshaled successfully", zap.Uint("tenant_id", cachedTenant.ID), zap.Uint("user_id", cachedTenant.UserID))
 
 	// Gera o token com o ID do usuário
 	token, erro := GenerateToken(cachedTenant.UserID)
@@ -180,11 +210,16 @@ func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.Use
 
 // FUNÇÕES DE FORNECEDORES ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) GetAllFornecedoresService() (*dtos.FornecedorListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllFornecedoresService(userID string) (*dtos.FornecedorListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all fornecedores service")
 
-	fornecedores, err := srv.dbClient.GetAllFornecedores(ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
 	if err != nil {
+		return nil, err
+	}
+
+	fornecedores, dbErr := srv.dbClient.GetAllFornecedores(tenantCtx)
+	if dbErr != nil {
 		zap.L().Error("Error getting fornecedores from database", zap.Error(err))
 		return nil, exceptions.NewInternalServerError("Error retrieving fornecedores")
 	}
@@ -212,12 +247,16 @@ func (srv *Service) GetAllFornecedoresService() (*dtos.FornecedorListResponse, *
 	return response, nil
 }
 
-func (srv *Service) CreateFornecedorService(request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr) {
+func (srv *Service) CreateFornecedorService(userID string, request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting fornecedor creation service")
 
 	fornecedor := entity.BuildFornecedorEntity(request)
 
-	dbErr := srv.dbClient.CreateFornecedor(*fornecedor, ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
+	if err != nil {
+		return false, err
+	}
+	dbErr := srv.dbClient.CreateFornecedor(*fornecedor, tenantCtx)
 	if dbErr != nil {
 		zap.L().Error("Error creating fornecedor in database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Internal server error")
@@ -227,13 +266,17 @@ func (srv *Service) CreateFornecedorService(request dtos.CreateFornecedorRequest
 	return true, nil
 }
 
-func (srv *Service) ChangeStatusFornecedorService(id string) (bool, *exceptions.RestErr) {
+func (srv *Service) ChangeStatusFornecedorService(userID string, id string) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting change status fornecedor service")
 
 	// Recupera o fornecedor pelo ID
-	fornecedor, err := srv.dbClient.GetFornecedorById(id, ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
 	if err != nil {
-		zap.L().Error("Error getting fornecedor from database", zap.Error(err))
+		return false, err
+	}
+	fornecedor, dbErr := srv.dbClient.GetFornecedorById(id, tenantCtx)
+	if dbErr != nil {
+		zap.L().Error("Error getting fornecedor from database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Error retrieving fornecedor")
 	}
 
@@ -245,7 +288,7 @@ func (srv *Service) ChangeStatusFornecedorService(id string) (bool, *exceptions.
 	}
 
 	// Atualiza o fornecedor no banco de dados
-	dbErr := srv.dbClient.UpdateFornecedor(*fornecedor, ctx)
+	dbErr = srv.dbClient.UpdateFornecedor(*fornecedor, tenantCtx)
 	if dbErr != nil {
 		zap.L().Error("Error updating fornecedor in database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Internal server error")
@@ -255,7 +298,7 @@ func (srv *Service) ChangeStatusFornecedorService(id string) (bool, *exceptions.
 	return true, nil
 }
 
-func (srv *Service) UpdateFornecedorFieldService(id string, campo string, valor string) (bool, *exceptions.RestErr) {
+func (srv *Service) UpdateFornecedorFieldService(userID string, id string, campo string, valor string) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting update fornecedor field service")
 
 	// Verifica se o campo é válido
@@ -272,7 +315,11 @@ func (srv *Service) UpdateFornecedorFieldService(id string, campo string, valor 
 	}
 
 	// Atualiza o campo no banco de dados
-	dbErr := srv.dbClient.UpdateFornecedorField(id, campo, valor, ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
+	if err != nil {
+		return false, err
+	}
+	dbErr := srv.dbClient.UpdateFornecedorField(id, campo, valor, tenantCtx)
 	if dbErr != nil {
 		zap.L().Error("Error updating fornecedor field in database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Internal server error")
@@ -282,10 +329,14 @@ func (srv *Service) UpdateFornecedorFieldService(id string, campo string, valor 
 	return true, nil
 }
 
-func (srv *Service) DeleteFornecedorService(id string) (bool, *exceptions.RestErr) {
+func (srv *Service) DeleteFornecedorService(userID string, id string) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting delete fornecedor service")
 
-	dbErr := srv.dbClient.DeleteFornecedor(id, ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
+	if err != nil {
+		return false, err
+	}
+	dbErr := srv.dbClient.DeleteFornecedor(id, tenantCtx)
 	if dbErr != nil {
 		zap.L().Error("Error deleting fornecedor in database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Internal server error")
@@ -297,12 +348,16 @@ func (srv *Service) DeleteFornecedorService(id string) (bool, *exceptions.RestEr
 
 // FUNÇÕES DE PRODUTOS ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) GetAllProductsService() (*dtos.ProductListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllProductsService(userID string) (*dtos.ProductListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all products service")
 
-	products, err := srv.dbClient.GetAllProducts(ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
 	if err != nil {
-		zap.L().Error("Error getting products from database", zap.Error(err))
+		return nil, err
+	}
+	products, dbErr := srv.dbClient.GetAllProducts(tenantCtx)
+	if dbErr != nil {
+		zap.L().Error("Error getting products from database", zap.Error(dbErr))
 		return nil, exceptions.NewInternalServerError("Error retrieving products")
 	}
 
@@ -334,12 +389,16 @@ func (srv *Service) GetAllProductsService() (*dtos.ProductListResponse, *excepti
 	return response, nil
 }
 
-func (srv *Service) CreateProductService(request dtos.CreateProductRequest) (bool, *exceptions.RestErr) {
+func (srv *Service) CreateProductService(userID string, request dtos.CreateProductRequest) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting product creation service")
 
 	product := entity.BuildProductEntity(request)
 
-	dbErr := srv.dbClient.CreateProduct(*product, ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
+	if err != nil {
+		return false, err
+	}
+	dbErr := srv.dbClient.CreateProduct(*product, tenantCtx)
 	if dbErr != nil {
 		zap.L().Error("Error creating product in database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Internal server error")
@@ -349,10 +408,14 @@ func (srv *Service) CreateProductService(request dtos.CreateProductRequest) (boo
 	return true, nil
 }
 
-func (srv *Service) DeleteProductService(id string) (bool, *exceptions.RestErr) {
+func (srv *Service) DeleteProductService(userID string, id string) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting delete product service")
 
-	dbErr := srv.dbClient.DeleteProduct(id, ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
+	if err != nil {
+		return false, err
+	}
+	dbErr := srv.dbClient.DeleteProduct(id, tenantCtx)
 	if dbErr != nil {
 		zap.L().Error("Error deleting product in database", zap.Error(dbErr))
 		return false, exceptions.NewInternalServerError("Internal server error")
@@ -364,12 +427,16 @@ func (srv *Service) DeleteProductService(id string) (bool, *exceptions.RestErr) 
 
 // FUNÇÕES DE PEDIDOS ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) GetAllPedidosService() (*dtos.PedidoListResponse, *exceptions.RestErr) {
+func (srv *Service) GetAllPedidosService(userID string) (*dtos.PedidoListResponse, *exceptions.RestErr) {
 	zap.L().Info("Starting get all pedidos service")
 
-	pedidos, err := srv.dbClient.GetAllPedidos(ctx)
+	tenantCtx, err := srv.getTenantContext(userID)
 	if err != nil {
-		zap.L().Error("Error getting pedidos from database", zap.Error(err))
+		return nil, err
+	}
+	pedidos, dbErr := srv.dbClient.GetAllPedidos(tenantCtx)
+	if dbErr != nil {
+		zap.L().Error("Error getting pedidos from database", zap.Error(dbErr))
 		return nil, exceptions.NewInternalServerError("Error retrieving pedidos")
 	}
 
