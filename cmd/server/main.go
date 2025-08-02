@@ -5,6 +5,7 @@ import (
 	"github.com/betine97/back-project.git/src/controller"
 	"github.com/betine97/back-project.git/src/controller/middlewares"
 	"github.com/betine97/back-project.git/src/controller/routes"
+	"github.com/betine97/back-project.git/src/model/interfaces"
 	"github.com/betine97/back-project.git/src/model/persistence"
 	"github.com/betine97/back-project.git/src/model/service"
 	"github.com/betine97/back-project.git/src/model/service/crypto"
@@ -68,7 +69,8 @@ func main() {
 	routes.SetupRoutes(app, userController)
 	zap.L().Info("✅ Rotas configuradas com sucesso")
 
-	port := ":8080"
+	cfg := config.NewConfig()
+	port := ":" + cfg.WebServerPort
 	zap.L().Info("🚀 Iniciando servidor HTTP", zap.String("porta", port))
 	if err := app.Listen(port); err != nil {
 		zap.L().Fatal("❌ Falha ao iniciar servidor", zap.Error(err))
@@ -80,6 +82,13 @@ func initDependencies(masterDB *gorm.DB, clientDB map[string]*gorm.DB) controlle
 	cryptoService := &crypto.Crypto{}
 	persistenceDBMASTER := persistence.NewDBConnectionDBMaster(masterDB)
 	persistenceDBCLIENT := persistence.NewDBConnectionDBClient(clientDB)
-	service := service.NewServiceInstance(cryptoService, persistenceDBMASTER, persistenceDBCLIENT, config.RedisClient)
+
+	// Wrap Redis client with interface
+	redisWrapper := interfaces.NewRedisWrapper(config.RedisClient)
+
+	// Create token generator
+	tokenGenerator := interfaces.NewJWTTokenGenerator()
+
+	service := service.NewServiceInstance(cryptoService, persistenceDBMASTER, persistenceDBCLIENT, redisWrapper, tokenGenerator)
 	return controller.NewControllerInstance(service)
 }

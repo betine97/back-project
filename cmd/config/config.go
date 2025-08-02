@@ -1,3 +1,6 @@
+//go:build !test
+// +build !test
+
 // cmd/config/config.go
 package config
 
@@ -43,24 +46,40 @@ func NewConfig() *Config {
 	return Cfg
 }
 
+// getEnvWithDefault retorna o valor da variável de ambiente ou um valor padrão
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 func init() {
-	err := godotenv.Load()
+	// Load .env from project root
+	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatalf("Warning: Error loading .env file: %v", err)
+		// Em testes, apenas avisa mas não falha
+		log.Printf("Warning: Error loading .env file: %v", err)
+		// Continua com valores padrão
 	}
 
 	Cfg = &Config{
-		DBDriver:      os.Getenv("DB_DRIVER"),
-		DBHost:        os.Getenv("DB_HOST"),
-		DBPort:        os.Getenv("DB_PORT"),
-		DBUser:        os.Getenv("DB_USER"),
-		DBName:        os.Getenv("DB_NAME"),
-		WebServerPort: os.Getenv("WEB_SERVER_PORT"),
-		JWTSecret:     os.Getenv("JWT_SECRET"),
+		DBDriver:      getEnvWithDefault("DB_DRIVER", "mysql"),
+		DBHost:        getEnvWithDefault("DB_HOST", "localhost"),
+		DBPort:        getEnvWithDefault("DB_PORT", "3306"),
+		DBUser:        getEnvWithDefault("DB_USER", "root"),
+		DBPassword:    getEnvWithDefault("DB_PASSWORD", ""),
+		DBName:        getEnvWithDefault("DB_NAME", "masterdb"),
+		WebServerPort: getEnvWithDefault("WEB_SERVER_PORT", "8080"),
+		JWTSecret:     getEnvWithDefault("JWT_SECRET", "default_test_secret"),
 		CORSOrigins:   getEnvWithDefault("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080"),
 	}
 
-	Cfg.JWTExpiresIn, _ = strconv.Atoi(os.Getenv("JWT_EXPIRES_IN"))
+	if expiresIn := os.Getenv("JWT_EXPIRES_IN"); expiresIn != "" {
+		Cfg.JWTExpiresIn, _ = strconv.Atoi(expiresIn)
+	} else {
+		Cfg.JWTExpiresIn = 30 // valor padrão
+	}
 
 	rng := rand.Reader
 	PrivateKey, err = rsa.GenerateKey(rng, 2048)
@@ -74,7 +93,7 @@ func init() {
 	config.EncoderConfig.StacktraceKey = ""
 
 	RedisClient = redis.NewClient(&redis.Options{
-		Addr: os.Getenv("REDIS_ADDR"), // Endereço do Redis
+		Addr: getEnvWithDefault("REDIS_ADDR", "localhost:6379"), // Endereço do Redis
 	})
 
 	Logger, err = config.Build()
@@ -112,7 +131,7 @@ func NewDatabaseConnection() (*gorm.DB, error) {
 
 func ConnectionDBClients() (map[string]*gorm.DB, error) {
 	var dbConnections = make(map[string]*gorm.DB)
-	file, err := os.Open("../config/dbclients.json")
+	file, err := os.Open("cmd/config/dbclients.json")
 	if err != nil {
 		return nil, fmt.Errorf("error opening dbclients.json: %v", err)
 	}
@@ -155,12 +174,4 @@ func ConnectionDBClients() (map[string]*gorm.DB, error) {
 	}
 
 	return dbConnections, nil
-}
-
-// getEnvWithDefault returns environment variable value or default if not set
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

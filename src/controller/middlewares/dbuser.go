@@ -2,14 +2,13 @@ package middlewares
 
 import (
 	"fmt"
-	"strconv"
 
-	"github.com/betine97/back-project.git/cmd/config"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"go.uber.org/zap"
 )
 
+// DatabaseExtractIdUser creates a middleware that extracts user ID from JWT claims
 func DatabaseExtractIdUser() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// O token já foi validado pelo middleware JWTProtected()
@@ -29,29 +28,10 @@ func DatabaseExtractIdUser() fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
 		}
 
-		// Buscar o tenant_id baseado no user_id
-		masterDB, err := config.NewDatabaseConnection()
-		if err != nil {
-			zap.L().Error("❌ Falha ao conectar com banco master", zap.Error(err))
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Erro de conexão com banco"})
-		}
+		zap.L().Info("✅ User ID extraído do token", zap.String("user_id", userID))
 
-		var tenant struct {
-			ID uint `json:"id"`
-		}
-
-		userIDInt, _ := strconv.Atoi(userID)
-		err = masterDB.Table("tenants").Select("id").Where("user_id = ?", userIDInt).First(&tenant).Error
-		if err != nil {
-			zap.L().Error("❌ Tenant não encontrado", zap.String("user_id", userID), zap.Error(err))
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Tenant não encontrado"})
-		}
-
-		tenantID := fmt.Sprintf("%d", tenant.ID)
-		zap.L().Info("✅ Tenant encontrado", zap.String("user_id", userID), zap.String("tenant_id", tenantID))
-
+		// Armazena apenas o userID no contexto
 		c.Locals("userID", userID)
-		c.Locals("tenantID", tenantID)
 		return c.Next()
 	}
 }

@@ -1,8 +1,6 @@
 package persistence
 
 import (
-	"context"
-
 	entity "github.com/betine97/back-project.git/src/model/entitys"
 
 	"go.uber.org/zap"
@@ -17,18 +15,18 @@ type PersistenceInterfaceDBMaster interface {
 }
 
 type PersistenceInterfaceDBClient interface {
-	GetAllFornecedores(ctx context.Context) ([]entity.Fornecedores, error)
-	CreateFornecedor(fornecedor entity.Fornecedores, ctx context.Context) error
-	GetFornecedorById(id string, ctx context.Context) (*entity.Fornecedores, error)
-	UpdateFornecedor(fornecedor entity.Fornecedores, ctx context.Context) error
-	UpdateFornecedorField(id string, campo string, valor string, ctx context.Context) error
-	DeleteFornecedor(id string, ctx context.Context) error
+	GetAllFornecedores(userID string) ([]entity.Fornecedores, error)
+	CreateFornecedor(fornecedor entity.Fornecedores, userID string) error
+	GetFornecedorById(id string, userID string) (*entity.Fornecedores, error)
+	UpdateFornecedor(fornecedor entity.Fornecedores, userID string) error
+	UpdateFornecedorField(id string, campo string, valor string, userID string) error
+	DeleteFornecedor(id string, userID string) error
 
-	GetAllProducts(ctx context.Context) ([]entity.Produto, error)
-	CreateProduct(product entity.Produto, ctx context.Context) error
-	DeleteProduct(id string, ctx context.Context) error
+	GetAllProducts(userID string) ([]entity.Produto, error)
+	CreateProduct(product entity.Produto, userID string) error
+	DeleteProduct(id string, userID string) error
 
-	GetAllPedidos(ctx context.Context) ([]entity.Pedido, error)
+	GetAllPedidos(userID string) ([]entity.Pedido, error)
 }
 
 type DBConnectionDBMaster struct {
@@ -47,12 +45,11 @@ func NewDBConnectionDBClient(db map[string]*gorm.DB) PersistenceInterfaceDBClien
 	return &DBConnectionDBClient{dbclient: db}
 }
 
-// getClientDB é uma função auxiliar para obter a conexão do banco baseada no tenantID
-func (repo *DBConnectionDBClient) getClientDB(ctx context.Context) *gorm.DB {
-	tenantID := ctx.Value("tenantID").(string)
-	clientKey := "db_" + tenantID
+// getClientDB é uma função auxiliar para obter a conexão do banco baseada no userID
+func (repo *DBConnectionDBClient) getClientDB(userID string) *gorm.DB {
+	clientKey := "db_" + userID
 
-	zap.L().Info("Getting client DB", zap.String("tenantID", tenantID), zap.String("clientKey", clientKey))
+	zap.L().Info("Getting client DB", zap.String("userID", userID), zap.String("clientKey", clientKey))
 
 	db := repo.dbclient[clientKey]
 	if db == nil {
@@ -111,11 +108,10 @@ func (repo *DBConnectionDBMaster) GetTenantByUserID(userID uint) *entity.Tenants
 
 // FUNÇÕES DE FORNECEDORES ------------------------------------------------------------------------------------------------------------------------------------
 
-func (repo *DBConnectionDBClient) GetAllFornecedores(ctx context.Context) ([]entity.Fornecedores, error) {
+func (repo *DBConnectionDBClient) GetAllFornecedores(userID string) ([]entity.Fornecedores, error) {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Getting all fornecedores from database")
+	zap.L().Info("Getting all fornecedores from database", zap.String("userID", userID))
 	var fornecedores []entity.Fornecedores
 	err := db.Find(&fornecedores).Error
 	if err != nil {
@@ -129,10 +125,10 @@ func (repo *DBConnectionDBClient) GetAllFornecedores(ctx context.Context) ([]ent
 	return fornecedores, nil
 }
 
-func (repo *DBConnectionDBClient) CreateFornecedor(fornecedor entity.Fornecedores, ctx context.Context) error {
-	db := repo.getClientDB(ctx)
+func (repo *DBConnectionDBClient) CreateFornecedor(fornecedor entity.Fornecedores, userID string) error {
+	db := repo.getClientDB(userID)
 
-	zap.L().Info("Creating fornecedor in the database", zap.String("fornecedor", fornecedor.Nome))
+	zap.L().Info("Creating fornecedor in the database", zap.String("fornecedor", fornecedor.Nome), zap.String("userID", userID))
 	err := db.Create(&fornecedor).Error
 	if err != nil {
 		zap.L().Error("Error creating fornecedor in database", zap.Error(err))
@@ -140,11 +136,10 @@ func (repo *DBConnectionDBClient) CreateFornecedor(fornecedor entity.Fornecedore
 	return err
 }
 
-func (repo *DBConnectionDBClient) GetFornecedorById(id string, ctx context.Context) (*entity.Fornecedores, error) {
+func (repo *DBConnectionDBClient) GetFornecedorById(id string, userID string) (*entity.Fornecedores, error) {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Getting fornecedor by id from database", zap.String("id", id))
+	zap.L().Info("Getting fornecedor by id from database", zap.String("id", id), zap.String("userID", userID))
 	var fornecedor entity.Fornecedores
 	err := db.Table("fornecedores").Where("id_fornecedor = ?", id).First(&fornecedor).Error
 	if err != nil {
@@ -155,11 +150,10 @@ func (repo *DBConnectionDBClient) GetFornecedorById(id string, ctx context.Conte
 	return &fornecedor, nil
 }
 
-func (repo *DBConnectionDBClient) UpdateFornecedor(fornecedor entity.Fornecedores, ctx context.Context) error {
+func (repo *DBConnectionDBClient) UpdateFornecedor(fornecedor entity.Fornecedores, userID string) error {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Updating fornecedor in the database", zap.String("fornecedor", fornecedor.Nome))
+	zap.L().Info("Updating fornecedor in the database", zap.String("fornecedor", fornecedor.Nome), zap.String("userID", userID))
 	err := db.Save(&fornecedor).Error
 	if err != nil {
 		zap.L().Error("Error updating fornecedor in database", zap.Error(err))
@@ -167,11 +161,10 @@ func (repo *DBConnectionDBClient) UpdateFornecedor(fornecedor entity.Fornecedore
 	return err
 }
 
-func (repo *DBConnectionDBClient) UpdateFornecedorField(id string, campo string, valor string, ctx context.Context) error {
+func (repo *DBConnectionDBClient) UpdateFornecedorField(id string, campo string, valor string, userID string) error {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Updating fornecedor field in the database", zap.String("id", id), zap.String("campo", campo), zap.String("valor", valor))
+	zap.L().Info("Updating fornecedor field in the database", zap.String("id", id), zap.String("campo", campo), zap.String("valor", valor), zap.String("userID", userID))
 
 	// Usando GORM para atualizar o campo específico
 	err := db.Model(&entity.Fornecedores{}).Where("id_fornecedor = ?", id).Update(campo, valor).Error
@@ -182,11 +175,10 @@ func (repo *DBConnectionDBClient) UpdateFornecedorField(id string, campo string,
 	return nil
 }
 
-func (repo *DBConnectionDBClient) DeleteFornecedor(id string, ctx context.Context) error {
+func (repo *DBConnectionDBClient) DeleteFornecedor(id string, userID string) error {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Deleting fornecedor from database", zap.String("id", id))
+	zap.L().Info("Deleting fornecedor from database", zap.String("id", id), zap.String("userID", userID))
 	err := db.Delete(&entity.Fornecedores{}, id).Error
 	if err != nil {
 		zap.L().Error("Error deleting fornecedor from database", zap.Error(err))
@@ -196,11 +188,10 @@ func (repo *DBConnectionDBClient) DeleteFornecedor(id string, ctx context.Contex
 
 // FUNÇÕES DE PRODUTOS ------------------------------------------------------------------------------------------------------------------------------------
 
-func (repo *DBConnectionDBClient) GetAllProducts(ctx context.Context) ([]entity.Produto, error) {
+func (repo *DBConnectionDBClient) GetAllProducts(userID string) ([]entity.Produto, error) {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Getting all products from database")
+	zap.L().Info("Getting all products from database", zap.String("userID", userID))
 	var products []entity.Produto
 	err := db.Find(&products).Error
 	if err != nil {
@@ -211,11 +202,10 @@ func (repo *DBConnectionDBClient) GetAllProducts(ctx context.Context) ([]entity.
 	return products, nil
 }
 
-func (repo *DBConnectionDBClient) CreateProduct(product entity.Produto, ctx context.Context) error {
+func (repo *DBConnectionDBClient) CreateProduct(product entity.Produto, userID string) error {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Creating product in the database", zap.String("product", product.NomeProduto))
+	zap.L().Info("Creating product in the database", zap.String("product", product.NomeProduto), zap.String("userID", userID))
 	err := db.Create(&product).Error
 	if err != nil {
 		zap.L().Error("Error creating product in database", zap.Error(err))
@@ -223,11 +213,10 @@ func (repo *DBConnectionDBClient) CreateProduct(product entity.Produto, ctx cont
 	return err
 }
 
-func (repo *DBConnectionDBClient) DeleteProduct(id string, ctx context.Context) error {
+func (repo *DBConnectionDBClient) DeleteProduct(id string, userID string) error {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-
-	zap.L().Info("Deleting product from database", zap.String("id", id))
+	zap.L().Info("Deleting product from database", zap.String("id", id), zap.String("userID", userID))
 	err := db.Delete(&entity.Produto{}, id).Error
 	if err != nil {
 		zap.L().Error("Error deleting product from database", zap.Error(err))
@@ -237,10 +226,10 @@ func (repo *DBConnectionDBClient) DeleteProduct(id string, ctx context.Context) 
 
 // FUNÇÕES DE PEDIDOS ------------------------------------------------------------------------------------------------------------------------------------
 
-func (repo *DBConnectionDBClient) GetAllPedidos(ctx context.Context) ([]entity.Pedido, error) {
+func (repo *DBConnectionDBClient) GetAllPedidos(userID string) ([]entity.Pedido, error) {
+	db := repo.getClientDB(userID)
 
-	db := repo.getClientDB(ctx)
-	zap.L().Info("Getting all pedidos from database")
+	zap.L().Info("Getting all pedidos from database", zap.String("userID", userID))
 	var pedidos []entity.Pedido
 	err := db.Table("pedidos").Find(&pedidos).Error // Especificar a tabela correta
 	if err != nil {
