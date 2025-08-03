@@ -103,8 +103,12 @@ func (ctl *Controller) RequestOtherService(ctx *fiber.Ctx) error {
 func (ctl *Controller) GetAllFornecedores(ctx *fiber.Ctx) error {
 	zap.L().Info("📋 Buscando todos os fornecedores")
 
+	// Obter parâmetros de paginação da query string
+	page := ctx.QueryInt("page", 1)
+	limit := ctx.QueryInt("limit", 30)
+
 	userID := ctx.Locals("userID").(string)
-	fornecedores, err := ctl.service.GetAllFornecedoresService(userID)
+	fornecedores, err := ctl.service.GetAllFornecedoresService(userID, page, limit)
 	if err != nil {
 		zap.L().Error("❌ Erro ao buscar fornecedores", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -112,7 +116,7 @@ func (ctl *Controller) GetAllFornecedores(ctx *fiber.Ctx) error {
 		})
 	}
 
-	zap.L().Info("✅ Fornecedores recuperados com sucesso", zap.Int("total", len(fornecedores.Fornecedores)))
+	zap.L().Info("✅ Fornecedores recuperados com sucesso", zap.Int("total", fornecedores.Total), zap.Int("page", page), zap.Int("limit", limit))
 	return ctx.Status(fiber.StatusOK).JSON(fornecedores)
 }
 
@@ -234,8 +238,12 @@ func (ctl *Controller) DeleteFornecedor(ctx *fiber.Ctx) error {
 func (ctl *Controller) GetAllProducts(ctx *fiber.Ctx) error {
 	zap.L().Info("Starting get all products controller")
 
+	// Obter parâmetros de paginação da query string
+	page := ctx.QueryInt("page", 1)
+	limit := ctx.QueryInt("limit", 30)
+
 	userID := ctx.Locals("userID").(string)
-	products, err := ctl.service.GetAllProductsService(userID)
+	products, err := ctl.service.GetAllProductsService(userID, page, limit)
 	if err != nil {
 		zap.L().Error("Error getting all products", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
@@ -243,23 +251,16 @@ func (ctl *Controller) GetAllProducts(ctx *fiber.Ctx) error {
 		})
 	}
 
-	zap.L().Info("Successfully retrieved all products", zap.Int("count", len(products.Products)))
+	zap.L().Info("Successfully retrieved all products", zap.Int("count", len(products.Products)), zap.Int("total", products.Total), zap.Int("page", page), zap.Int("limit", limit))
 	return ctx.Status(fiber.StatusOK).JSON(products)
 }
 
 func (ctl *Controller) CreateProduct(ctx *fiber.Ctx) error {
 
-	var product dtos.CreateProductRequest
-
-	if err := ctx.BodyParser(&product); err != nil {
-		zap.L().Error("Error reading request data", zap.Error(err))
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Unable to read request data",
-		})
-	}
+	createProduct := ctx.Locals("createProduct").(dtos.CreateProductRequest)
 
 	userID := ctx.Locals("userID").(string)
-	success, err := ctl.service.CreateProductService(userID, product)
+	success, err := ctl.service.CreateProductService(userID, createProduct)
 	if err != nil {
 		zap.L().Error("Error creating product", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{

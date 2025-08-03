@@ -16,6 +16,7 @@ type PersistenceInterfaceDBMaster interface {
 
 type PersistenceInterfaceDBClient interface {
 	GetAllFornecedores(userID string) ([]entity.Fornecedores, error)
+	GetAllFornecedoresPaginated(userID string, limit, offset int) ([]entity.Fornecedores, int, error)
 	CreateFornecedor(fornecedor entity.Fornecedores, userID string) error
 	GetFornecedorById(id string, userID string) (*entity.Fornecedores, error)
 	UpdateFornecedor(fornecedor entity.Fornecedores, userID string) error
@@ -23,6 +24,8 @@ type PersistenceInterfaceDBClient interface {
 	DeleteFornecedor(id string, userID string) error
 
 	GetAllProducts(userID string) ([]entity.Produto, error)
+	GetAllProductsPaginated(userID string, limit, offset int) ([]entity.Produto, int, error)
+	GetProductByBarcode(barcode string, userID string) *entity.Produto
 	CreateProduct(product entity.Produto, userID string) error
 	DeleteProduct(id string, userID string) error
 
@@ -125,6 +128,32 @@ func (repo *DBConnectionDBClient) GetAllFornecedores(userID string) ([]entity.Fo
 	return fornecedores, nil
 }
 
+func (repo *DBConnectionDBClient) GetAllFornecedoresPaginated(userID string, limit, offset int) ([]entity.Fornecedores, int, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting paginated fornecedores from database", zap.String("userID", userID), zap.Int("limit", limit), zap.Int("offset", offset))
+
+	var fornecedores []entity.Fornecedores
+	var total int64
+
+	// Contar total de registros
+	err := db.Model(&entity.Fornecedores{}).Count(&total).Error
+	if err != nil {
+		zap.L().Error("Error counting fornecedores", zap.Error(err))
+		return nil, 0, err
+	}
+
+	// Buscar registros paginados
+	err = db.Limit(limit).Offset(offset).Find(&fornecedores).Error
+	if err != nil {
+		zap.L().Error("Error getting paginated fornecedores from database", zap.Error(err))
+		return nil, 0, err
+	}
+
+	zap.L().Info("Successfully retrieved paginated fornecedores", zap.Int("count", len(fornecedores)), zap.Int64("total", total))
+	return fornecedores, int(total), nil
+}
+
 func (repo *DBConnectionDBClient) CreateFornecedor(fornecedor entity.Fornecedores, userID string) error {
 	db := repo.getClientDB(userID)
 
@@ -200,6 +229,44 @@ func (repo *DBConnectionDBClient) GetAllProducts(userID string) ([]entity.Produt
 	}
 	zap.L().Info("Successfully retrieved products", zap.Int("count", len(products)))
 	return products, nil
+}
+
+func (repo *DBConnectionDBClient) GetAllProductsPaginated(userID string, limit, offset int) ([]entity.Produto, int, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting paginated products from database", zap.String("userID", userID), zap.Int("limit", limit), zap.Int("offset", offset))
+
+	var products []entity.Produto
+	var total int64
+
+	// Contar total de registros
+	err := db.Model(&entity.Produto{}).Count(&total).Error
+	if err != nil {
+		zap.L().Error("Error counting products", zap.Error(err))
+		return nil, 0, err
+	}
+
+	// Buscar registros paginados
+	err = db.Limit(limit).Offset(offset).Find(&products).Error
+	if err != nil {
+		zap.L().Error("Error getting paginated products from database", zap.Error(err))
+		return nil, 0, err
+	}
+
+	zap.L().Info("Successfully retrieved paginated products", zap.Int("count", len(products)), zap.Int64("total", total))
+	return products, int(total), nil
+}
+
+func (repo *DBConnectionDBClient) GetProductByBarcode(barcode string, userID string) *entity.Produto {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting product by barcode from database", zap.String("barcode", barcode), zap.String("userID", userID))
+	var product entity.Produto
+	err := db.Where("codigo_barra = ?", barcode).First(&product).Error
+	if err != nil {
+		zap.L().Error("Product not found by barcode", zap.Error(err))
+	}
+	return &product
 }
 
 func (repo *DBConnectionDBClient) CreateProduct(product entity.Produto, userID string) error {

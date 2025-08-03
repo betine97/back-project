@@ -20,13 +20,13 @@ type ServiceInterface interface {
 	CreateUserService(request dtos.CreateUser) (*entity.User, *exceptions.RestErr)
 	LoginUserService(request dtos.UserLogin) (string, *exceptions.RestErr)
 
-	GetAllFornecedoresService(userID string) (*dtos.FornecedorListResponse, *exceptions.RestErr)
+	GetAllFornecedoresService(userID string, page, limit int) (*dtos.FornecedorListResponse, *exceptions.RestErr)
 	CreateFornecedorService(userID string, request dtos.CreateFornecedorRequest) (bool, *exceptions.RestErr)
 	ChangeStatusFornecedorService(userID string, id string) (bool, *exceptions.RestErr)
 	UpdateFornecedorFieldService(userID string, id string, campo string, valor string) (bool, *exceptions.RestErr)
 	DeleteFornecedorService(userID string, id string) (bool, *exceptions.RestErr)
 
-	GetAllProductsService(userID string) (*dtos.ProductListResponse, *exceptions.RestErr)
+	GetAllProductsService(userID string, page, limit int) (*dtos.ProductListResponse, *exceptions.RestErr)
 	CreateProductService(userID string, request dtos.CreateProductRequest) (bool, *exceptions.RestErr)
 	DeleteProductService(userID string, id string) (bool, *exceptions.RestErr)
 
@@ -182,10 +182,21 @@ func buildUserEntity(request dtos.CreateUser, hashedPassword string) *entity.Use
 
 // FUNÇÕES DE FORNECEDORES ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) GetAllFornecedoresService(userID string) (*dtos.FornecedorListResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get all fornecedores service")
+func (srv *Service) GetAllFornecedoresService(userID string, page, limit int) (*dtos.FornecedorListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get all fornecedores service", zap.Int("page", page), zap.Int("limit", limit))
 
-	fornecedores, dbErr := srv.dbClient.GetAllFornecedores(userID)
+	// Validar parâmetros de paginação
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 30
+	}
+
+	// Calcular offset
+	offset := (page - 1) * limit
+
+	fornecedores, total, dbErr := srv.dbClient.GetAllFornecedoresPaginated(userID, limit, offset)
 	if dbErr != nil {
 		zap.L().Error("Error getting fornecedores from database", zap.Error(dbErr))
 		return nil, exceptions.NewInternalServerError("Error retrieving fornecedores")
@@ -201,16 +212,22 @@ func (srv *Service) GetAllFornecedoresService(userID string) (*dtos.FornecedorLi
 			Cidade:       fornecedor.Cidade,
 			Estado:       fornecedor.Estado,
 			Status:       fornecedor.Status,
-			DataCadastro: fornecedor.DataCadastro, // Certifique-se de incluir este campo se necessário
+			DataCadastro: fornecedor.DataCadastro,
 		}
 	}
 
+	// Calcular total de páginas
+	totalPages := (total + limit - 1) / limit
+
 	response := &dtos.FornecedorListResponse{
 		Fornecedores: fornecedorResponses,
-		Total:        len(fornecedores),
+		Total:        total,
+		Page:         page,
+		Limit:        limit,
+		TotalPages:   totalPages,
 	}
 
-	zap.L().Info("Successfully retrieved all fornecedores", zap.Int("count", len(fornecedores)))
+	zap.L().Info("Successfully retrieved fornecedores", zap.Int("count", len(fornecedores)), zap.Int("total", total), zap.Int("page", page))
 	return response, nil
 }
 
@@ -299,10 +316,21 @@ func (srv *Service) DeleteFornecedorService(userID string, id string) (bool, *ex
 
 // FUNÇÕES DE PRODUTOS ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) GetAllProductsService(userID string) (*dtos.ProductListResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get all products service")
+func (srv *Service) GetAllProductsService(userID string, page, limit int) (*dtos.ProductListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get all products service", zap.Int("page", page), zap.Int("limit", limit))
 
-	products, dbErr := srv.dbClient.GetAllProducts(userID)
+	// Validar parâmetros de paginação
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 30
+	}
+
+	// Calcular offset
+	offset := (page - 1) * limit
+
+	products, total, dbErr := srv.dbClient.GetAllProductsPaginated(userID, limit, offset)
 	if dbErr != nil {
 		zap.L().Error("Error getting products from database", zap.Error(dbErr))
 		return nil, exceptions.NewInternalServerError("Error retrieving products")
@@ -322,22 +350,36 @@ func (srv *Service) GetAllProductsService(userID string) (*dtos.ProductListRespo
 			Descricao:     product.Descricao,
 			Status:        product.Status,
 			PrecoVenda:    product.PrecoVenda,
+			IDFornecedor:  product.IDFornecedor,
 		}
 	}
 
+	// Calcular total de páginas
+	totalPages := (total + limit - 1) / limit
+
 	response := &dtos.ProductListResponse{
-		Products: productResponses,
-		Total:    len(productResponses),
-		Page:     1,
-		Limit:    len(productResponses),
+		Products:   productResponses,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
 	}
 
-	zap.L().Info("Successfully retrieved all products", zap.Int("count", len(products)))
+	zap.L().Info("Successfully retrieved products", zap.Int("count", len(products)), zap.Int("total", total), zap.Int("page", page))
 	return response, nil
 }
 
 func (srv *Service) CreateProductService(userID string, request dtos.CreateProductRequest) (bool, *exceptions.RestErr) {
 	zap.L().Info("Starting product creation service")
+
+	// Validar se o código de barras já existe (apenas se não estiver vazio)
+	if request.CodigoBarra != "" {
+		existingProduct := srv.dbClient.GetProductByBarcode(request.CodigoBarra, userID)
+		if existingProduct.CodigoBarra != "" {
+			zap.L().Warn("Barcode already associated with an existing product", zap.String("barcode", request.CodigoBarra))
+			return false, exceptions.NewBadRequestError("Este código de barras já está sendo usado por outro produto. Por favor, verifique e tente novamente.")
+		}
+	}
 
 	product := entity.BuildProductEntity(request)
 

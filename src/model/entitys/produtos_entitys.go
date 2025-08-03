@@ -17,6 +17,7 @@ type Produto struct {
 	Descricao     string  `gorm:"column:descricao" json:"descricao"`
 	Status        string  `gorm:"column:status" json:"status"`
 	PrecoVenda    float64 `gorm:"column:preco_venda" json:"preco_venda"`
+	IDFornecedor  int     `gorm:"column:id_fornecedor" json:"id_fornecedor"`
 }
 
 func BuildProductEntity(request dtos.CreateProductRequest) *Produto {
@@ -32,5 +33,6 @@ func BuildProductEntity(request dtos.CreateProductRequest) *Produto {
 		Descricao:     request.Descricao,
 		Status:        request.Status,
 		PrecoVenda:    request.PrecoVenda,
+		IDFornecedor:  request.IDFornecedor,
 	}
 }

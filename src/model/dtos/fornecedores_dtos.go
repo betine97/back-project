@@ -29,4 +29,7 @@ type FornecedorResponse struct {
 type FornecedorListResponse struct {
 	Fornecedores []FornecedorResponse `json:"fornecedores"`
 	Total        int                  `json:"total"`
+	Page         int                  `json:"page"`
+	Limit        int                  `json:"limit"`
+	TotalPages   int                  `json:"total_pages"`
 }

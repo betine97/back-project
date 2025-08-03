@@ -76,6 +76,55 @@ func UserValidationMiddleware(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
+func ProductValidationMiddleware(ctx *fiber.Ctx) error {
+	zap.L().Info("Starting product validation")
+
+	var createProduct dtos.CreateProductRequest
+	data := ctx.Body()
+
+	err := ValidateUnexpectedProductFields(ctx, data)
+	if err != nil {
+		zap.L().Error("Unexpected fields in the request", zap.Error(err))
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	if err := json.Unmarshal(data, &createProduct); err != nil {
+		zap.L().Error("Error when unmarshalling data", zap.Error(err))
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid field type",
+		})
+	}
+
+	if err := Validate.Struct(&createProduct); err != nil {
+		var jsonValidationError validator.ValidationErrors
+		if errors.As(err, &jsonValidationError) {
+			errorsCauses := []exceptions.Causes{}
+			for _, e := range jsonValidationError {
+				cause := exceptions.Causes{
+					FieldMessage: e.Translate(transl),
+					Field:        e.Field(),
+				}
+				errorsCauses = append(errorsCauses, cause)
+			}
+			zap.L().Error("Error validating fields", zap.Error(err))
+			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"request invalid": exceptions.NewBadRequestValidationError("Some fields are invalid", errorsCauses),
+			})
+		}
+
+		zap.L().Info("Error converting fields", zap.Error(err))
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Error trying to convert fields",
+		})
+	}
+
+	ctx.Locals("createProduct", createProduct)
+	zap.L().Info("Product validation completed successfully")
+	return ctx.Next()
+}
+
 func ValidateUnexpectedFields(ctx *fiber.Ctx, data []byte) error {
 
 	zap.L().Info("Validating unexpected fields")
@@ -111,6 +160,50 @@ func ValidateUnexpectedFields(ctx *fiber.Ctx, data []byte) error {
 	}
 
 	zap.L().Info("Validating unexpected fields")
+	return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"error": fmt.Sprintf("Unexpected fields: %v. Please remove them and try again.", unexpectedFields),
+	})
+
+}
+
+func ValidateUnexpectedProductFields(ctx *fiber.Ctx, data []byte) error {
+
+	zap.L().Info("Validating unexpected product fields")
+
+	var rawMap map[string]interface{}
+
+	if err := json.Unmarshal(data, &rawMap); err != nil {
+		zap.L().Error("Formato de JSON inválido", zap.Error(err))
+		return exceptions.NewBadRequestError("Invalid JSON format")
+	}
+
+	expectedFields := map[string]bool{
+		"data_cadastro":  true,
+		"codigo_barra":   true,
+		"nome_produto":   true,
+		"sku":            true,
+		"categoria":      true,
+		"destinado_para": true,
+		"variacao":       true,
+		"marca":          true,
+		"descricao":      true,
+		"status":         true,
+		"preco_venda":    true,
+		"id_fornecedor":  true,
+	}
+
+	var unexpectedFields []string
+	for field := range rawMap {
+		if !expectedFields[field] {
+			unexpectedFields = append(unexpectedFields, field)
+		}
+	}
+
+	if len(unexpectedFields) == 0 {
+		return nil
+	}
+
+	zap.L().Info("Validating unexpected product fields")
 	return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 		"error": fmt.Sprintf("Unexpected fields: %v. Please remove them and try again.", unexpectedFields),
 	})

@@ -54,24 +54,32 @@ func getEnvWithDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// getEnvOrFail retorna o valor da variável de ambiente ou falha a aplicação
+func getEnvOrFail(key string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		log.Fatalf("❌ Required environment variable %s is not set", key)
+	}
+	return value
+}
+
 func init() {
-	// Load .env from project root
+
 	err := godotenv.Load(".env")
 	if err != nil {
-		// Em testes, apenas avisa mas não falha
-		log.Printf("Warning: Error loading .env file: %v", err)
-		// Continua com valores padrão
+		log.Printf("⚠️  Warning: Error loading .env file: %v", err)
+		log.Printf("📋 Make sure you have a .env file with required environment variables")
 	}
 
 	Cfg = &Config{
 		DBDriver:      getEnvWithDefault("DB_DRIVER", "mysql"),
-		DBHost:        getEnvWithDefault("DB_HOST", "localhost"),
+		DBHost:        getEnvOrFail("DB_HOST"),
 		DBPort:        getEnvWithDefault("DB_PORT", "3306"),
-		DBUser:        getEnvWithDefault("DB_USER", "root"),
-		DBPassword:    getEnvWithDefault("DB_PASSWORD", ""),
-		DBName:        getEnvWithDefault("DB_NAME", "masterdb"),
+		DBUser:        getEnvOrFail("DB_USER"),
+		DBPassword:    getEnvOrFail("DB_PASSWORD"),
+		DBName:        getEnvOrFail("DB_NAME"),
 		WebServerPort: getEnvWithDefault("WEB_SERVER_PORT", "8080"),
-		JWTSecret:     getEnvWithDefault("JWT_SECRET", "default_test_secret"),
+		JWTSecret:     getEnvOrFail("JWT_SECRET"),
 		CORSOrigins:   getEnvWithDefault("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080"),
 	}
 
@@ -144,7 +152,7 @@ func ConnectionDBClients() (map[string]*gorm.DB, error) {
 			DB_HOST         string `json:"DB_HOST"`
 			DB_PORT         int    `json:"DB_PORT"`
 			DB_USER         string `json:"DB_USER"`
-			DB_PASSWORD     string `json:"DB_PASSWORD"` // Adicione este campo
+			DB_PASSWORD     string `json:"DB_PASSWORD"`
 			DB_NAME         string `json:"DB_NAME"`
 			WEB_SERVER_PORT int    `json:"WEB_SERVER_PORT"`
 		} `json:"clients"`

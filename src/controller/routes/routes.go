@@ -28,7 +28,7 @@ func SetupRoutes(app *fiber.App, userController controller.ControllerInterface) 
 	// Protected product routes (com autenticação)
 	produtos := api.Group("/produtos")
 	produtos.Get("/", userController.GetAllProducts)
-	produtos.Post("/", userController.CreateProduct)
+	produtos.Post("/", middlewares.ProductValidationMiddleware, userController.CreateProduct)
 	produtos.Delete("/:id", userController.DeleteProduct)
 
 	// Protected pedidos routes (com autenticação)
