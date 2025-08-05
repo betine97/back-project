@@ -37,6 +37,16 @@ type ControllerInterface interface {
 	DeleteProduct(ctx *fiber.Ctx) error
 
 	GetAllPedidos(ctx *fiber.Ctx) error
+	GetPedidoById(ctx *fiber.Ctx) error
+	CreatePedido(ctx *fiber.Ctx) error
+
+	// Itens de Pedido
+	GetItensPedido(ctx *fiber.Ctx) error
+	CreateItemPedido(ctx *fiber.Ctx) error
+
+	// Estoque
+	GetAllEstoque(ctx *fiber.Ctx) error
+	CreateEstoque(ctx *fiber.Ctx) error
 }
 
 type Controller struct {
@@ -307,17 +317,167 @@ func (ctl *Controller) DeleteProduct(ctx *fiber.Ctx) error {
 // FUNÇÕES DE PEDIDOS ------------------------------------------------------------------------------------------------------------------------------------
 
 func (ctl *Controller) GetAllPedidos(ctx *fiber.Ctx) error {
-	zap.L().Info("Starting get all pedidos controller")
+	zap.L().Info("📋 Buscando todos os pedidos")
+
+	// Obter parâmetros de paginação da query string
+	page := ctx.QueryInt("page", 1)
+	limit := ctx.QueryInt("limit", 30)
 
 	userID := ctx.Locals("userID").(string)
-	pedidos, err := ctl.service.GetAllPedidosService(userID)
+	pedidos, err := ctl.service.GetAllPedidosService(userID, page, limit)
 	if err != nil {
-		zap.L().Error("Error getting all pedidos", zap.Error(err))
+		zap.L().Error("❌ Erro ao buscar pedidos", zap.Error(err))
 		return ctx.Status(err.Code).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	zap.L().Info("Successfully retrieved all pedidos", zap.Int("count", len(pedidos.Pedidos)))
+	zap.L().Info("✅ Pedidos recuperados com sucesso", zap.Int("total", pedidos.Total), zap.Int("page", page), zap.Int("limit", limit))
 	return ctx.Status(fiber.StatusOK).JSON(pedidos)
+}
+
+func (ctl *Controller) GetPedidoById(ctx *fiber.Ctx) error {
+	zap.L().Info("Starting get pedido by ID controller")
+
+	id := ctx.Params("id")
+	userID := ctx.Locals("userID").(string)
+
+	pedido, err := ctl.service.GetPedidoByIdService(userID, id)
+	if err != nil {
+		zap.L().Error("Error getting pedido by ID", zap.Error(err))
+		return ctx.Status(err.Code).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	zap.L().Info("Successfully retrieved pedido by ID", zap.String("id", id))
+	return ctx.Status(fiber.StatusOK).JSON(pedido)
+}
+
+func (ctl *Controller) CreatePedido(ctx *fiber.Ctx) error {
+	zap.L().Info("Starting create pedido controller")
+
+	createPedido := ctx.Locals("createPedido").(dtos.CreatePedidoRequest)
+
+	userID := ctx.Locals("userID").(string)
+	pedidoID, err := ctl.service.CreatePedidoService(userID, createPedido)
+	if err != nil {
+		zap.L().Error("Error creating pedido", zap.Error(err))
+		return ctx.Status(err.Code).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	if pedidoID == 0 {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error creating pedido",
+		})
+	}
+
+	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":   "Pedido created successfully",
+		"id_pedido": pedidoID,
+	})
+}
+
+// FUNÇÕES DE ITENS DE PEDIDO ------------------------------------------------------------------------------------------------------------------------------------
+
+func (ctl *Controller) GetItensPedido(ctx *fiber.Ctx) error {
+	zap.L().Info("📋 Buscando itens do pedido")
+
+	idPedido := ctx.Params("id")
+
+	// Obter parâmetros de paginação da query string
+	page := ctx.QueryInt("page", 1)
+	limit := ctx.QueryInt("limit", 30)
+
+	userID := ctx.Locals("userID").(string)
+	itens, err := ctl.service.GetItensPedidoService(userID, idPedido, page, limit)
+	if err != nil {
+		zap.L().Error("❌ Erro ao buscar itens do pedido", zap.Error(err))
+		return ctx.Status(err.Code).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	zap.L().Info("✅ Itens do pedido recuperados com sucesso", zap.String("idPedido", idPedido), zap.Int("total", itens.Total))
+	return ctx.Status(fiber.StatusOK).JSON(itens)
+}
+
+func (ctl *Controller) CreateItemPedido(ctx *fiber.Ctx) error {
+	zap.L().Info("Starting create item pedido controller")
+
+	idPedido := ctx.Params("id")
+	createItemPedido := ctx.Locals("createItemPedido").(dtos.CreateItemPedidoRequest)
+
+	userID := ctx.Locals("userID").(string)
+	success, err := ctl.service.CreateItemPedidoService(userID, idPedido, createItemPedido)
+	if err != nil {
+		zap.L().Error("Error creating item pedido", zap.Error(err))
+		return ctx.Status(err.Code).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	if !success {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error creating item pedido",
+		})
+	}
+
+	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Item pedido created successfully",
+	})
+}
+
+// FUNÇÕES DE ESTOQUE ------------------------------------------------------------------------------------------------------------------------------------
+
+func (ctl *Controller) GetAllEstoque(ctx *fiber.Ctx) error {
+	zap.L().Info("Starting get all estoque controller")
+
+	userID := ctx.Locals("userID").(string)
+	page := ctx.QueryInt("page", 1)
+	limit := ctx.QueryInt("limit", 10)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	estoque, err := ctl.service.GetAllEstoqueService(userID, page, limit)
+	if err != nil {
+		zap.L().Error("Error getting estoque", zap.Error(err))
+		return ctx.Status(err.Code).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return ctx.Status(fiber.StatusOK).JSON(estoque)
+}
+
+func (ctl *Controller) CreateEstoque(ctx *fiber.Ctx) error {
+	zap.L().Info("Starting create estoque controller")
+
+	createEstoque := ctx.Locals("createEstoque").(dtos.CreateEstoqueRequest)
+	userID := ctx.Locals("userID").(string)
+
+	success, err := ctl.service.CreateEstoqueService(userID, createEstoque)
+	if err != nil {
+		zap.L().Error("Error creating estoque", zap.Error(err))
+		return ctx.Status(err.Code).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	if !success {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error creating estoque",
+		})
+	}
+
+	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Estoque created successfully",
+	})
 }

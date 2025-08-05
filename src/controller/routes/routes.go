@@ -34,5 +34,16 @@ func SetupRoutes(app *fiber.App, userController controller.ControllerInterface) 
 	// Protected pedidos routes (com autenticação)
 	pedidos := api.Group("/pedidos")
 	pedidos.Get("/", userController.GetAllPedidos)
+	pedidos.Get("/:id", userController.GetPedidoById)
+	pedidos.Post("/", middlewares.PedidoValidationMiddleware, userController.CreatePedido)
+
+	// Protected itens pedido routes (com autenticação)
+	pedidos.Get("/:id/itens", userController.GetItensPedido)
+	pedidos.Post("/:id/itens", middlewares.ItemPedidoValidationMiddleware, userController.CreateItemPedido)
+
+	// Protected estoque routes (com autenticação)
+	estoque := api.Group("/estoque")
+	estoque.Get("/", userController.GetAllEstoque)
+	estoque.Post("/", middlewares.EstoqueValidationMiddleware, userController.CreateEstoque)
 
 }

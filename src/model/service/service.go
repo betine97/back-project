@@ -30,7 +30,17 @@ type ServiceInterface interface {
 	CreateProductService(userID string, request dtos.CreateProductRequest) (bool, *exceptions.RestErr)
 	DeleteProductService(userID string, id string) (bool, *exceptions.RestErr)
 
-	GetAllPedidosService(userID string) (*dtos.PedidoListResponse, *exceptions.RestErr)
+	GetAllPedidosService(userID string, page, limit int) (*dtos.PedidoListResponse, *exceptions.RestErr)
+	GetPedidoByIdService(userID string, id string) (*dtos.PedidoResponse, *exceptions.RestErr)
+	CreatePedidoService(userID string, request dtos.CreatePedidoRequest) (int, *exceptions.RestErr)
+
+	// Itens de Pedido
+	GetItensPedidoService(userID string, idPedido string, page, limit int) (*dtos.DetalhesPedidoListResponse, *exceptions.RestErr)
+	CreateItemPedidoService(userID string, idPedido string, request dtos.CreateItemPedidoRequest) (bool, *exceptions.RestErr)
+
+	// Estoque
+	GetAllEstoqueService(userID string, page, limit int) (*dtos.EstoqueListResponse, *exceptions.RestErr)
+	CreateEstoqueService(userID string, request dtos.CreateEstoqueRequest) (bool, *exceptions.RestErr)
 }
 
 var ctx = context.Background()
@@ -408,10 +418,21 @@ func (srv *Service) DeleteProductService(userID string, id string) (bool, *excep
 
 // FUNÇÕES DE PEDIDOS ------------------------------------------------------------------------------------------------------------------------------------
 
-func (srv *Service) GetAllPedidosService(userID string) (*dtos.PedidoListResponse, *exceptions.RestErr) {
-	zap.L().Info("Starting get all pedidos service")
+func (srv *Service) GetAllPedidosService(userID string, page, limit int) (*dtos.PedidoListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get all pedidos service", zap.Int("page", page), zap.Int("limit", limit))
 
-	pedidos, dbErr := srv.dbClient.GetAllPedidos(userID)
+	// Validar parâmetros de paginação
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 30
+	}
+
+	// Calcular offset
+	offset := (page - 1) * limit
+
+	pedidos, total, dbErr := srv.dbClient.GetAllPedidosPaginated(userID, limit, offset)
 	if dbErr != nil {
 		zap.L().Error("Error getting pedidos from database", zap.Error(dbErr))
 		return nil, exceptions.NewInternalServerError("Error retrieving pedidos")
@@ -432,11 +453,193 @@ func (srv *Service) GetAllPedidosService(userID string) (*dtos.PedidoListRespons
 		}
 	}
 
+	// Calcular total de páginas
+	totalPages := (total + limit - 1) / limit
+
 	response := &dtos.PedidoListResponse{
-		Pedidos: pedidoResponses,
-		Total:   len(pedidos),
+		Pedidos:    pedidoResponses,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
 	}
 
-	zap.L().Info("Successfully retrieved all pedidos", zap.Int("count", len(pedidos)))
+	zap.L().Info("Successfully retrieved pedidos", zap.Int("count", len(pedidos)), zap.Int("total", total), zap.Int("page", page))
 	return response, nil
+}
+
+func (srv *Service) GetPedidoByIdService(userID string, id string) (*dtos.PedidoResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get pedido by ID service", zap.String("id", id))
+
+	pedido, dbErr := srv.dbClient.GetPedidoById(id, userID)
+	if dbErr != nil {
+		zap.L().Error("Error getting pedido from database", zap.Error(dbErr))
+		return nil, exceptions.NewNotFoundError("Pedido not found")
+	}
+
+	response := &dtos.PedidoResponse{
+		ID:           pedido.IDPedido,
+		IDFornecedor: pedido.IDFornecedor,
+		DataPedido:   pedido.DataPedido,
+		DataEntrega:  pedido.DataEntrega,
+		ValorFrete:   pedido.ValorFrete,
+		CustoPedido:  pedido.CustoPedido,
+		ValorTotal:   pedido.ValorTotal,
+		Descricao:    pedido.Descricao,
+		Status:       pedido.Status,
+	}
+
+	zap.L().Info("Successfully retrieved pedido by ID", zap.String("id", id))
+	return response, nil
+}
+
+func (srv *Service) CreatePedidoService(userID string, request dtos.CreatePedidoRequest) (int, *exceptions.RestErr) {
+	zap.L().Info("Starting pedido creation service")
+
+	pedido := entity.BuildPedidoEntity(request)
+
+	dbErr := srv.dbClient.CreatePedido(pedido, userID)
+	if dbErr != nil {
+		zap.L().Error("Error creating pedido in database", zap.Error(dbErr))
+		return 0, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Pedido created successfully", zap.String("descricao", pedido.Descricao), zap.Int("id", pedido.IDPedido))
+	return pedido.IDPedido, nil
+}
+
+// FUNÇÕES DE ITENS DE PEDIDO ------------------------------------------------------------------------------------------------------------------------------------
+
+func (srv *Service) GetItensPedidoService(userID string, idPedido string, page, limit int) (*dtos.DetalhesPedidoListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get detalhes pedido service using view", zap.String("idPedido", idPedido), zap.Int("page", page), zap.Int("limit", limit))
+
+	// Validar parâmetros de paginação
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 30
+	}
+
+	// Calcular offset
+	offset := (page - 1) * limit
+
+	detalhes, total, dbErr := srv.dbClient.GetDetalhesPedidoPaginated(idPedido, userID, limit, offset)
+	if dbErr != nil {
+		zap.L().Error("Error getting detalhes pedido from view", zap.Error(dbErr))
+		return nil, exceptions.NewInternalServerError("Error retrieving detalhes pedido")
+	}
+
+	detalheResponses := make([]dtos.DetalhesPedidoResponse, len(detalhes))
+	for i, detalhe := range detalhes {
+		detalheResponses[i] = dtos.DetalhesPedidoResponse{
+			IDPedido:      detalhe.IDPedido,
+			NomeProduto:   detalhe.NomeProduto,
+			Quantidade:    detalhe.Quantidade,
+			PrecoUnitario: detalhe.PrecoUnitario,
+			TotalItem:     detalhe.TotalItem,
+		}
+	}
+
+	// Calcular total de páginas
+	totalPages := (total + limit - 1) / limit
+
+	// Converter idPedido para int
+	idPedidoInt := 0
+	if len(detalhes) > 0 {
+		idPedidoInt = detalhes[0].IDPedido
+	}
+
+	response := &dtos.DetalhesPedidoListResponse{
+		Detalhes:   detalheResponses,
+		Total:      total,
+		IDPedido:   idPedidoInt,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}
+
+	zap.L().Info("Successfully retrieved detalhes pedido from view", zap.String("idPedido", idPedido), zap.Int("count", len(detalhes)), zap.Int("total", total))
+	return response, nil
+}
+
+func (srv *Service) CreateItemPedidoService(userID string, idPedido string, request dtos.CreateItemPedidoRequest) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting item pedido creation service", zap.String("idPedido", idPedido))
+
+	// Converter idPedido string para int
+	idPedidoInt := 0
+	if _, err := fmt.Sscanf(idPedido, "%d", &idPedidoInt); err != nil {
+		zap.L().Error("Error converting idPedido to int", zap.Error(err))
+		return false, exceptions.NewBadRequestError("Invalid pedido ID")
+	}
+
+	item := entity.BuildItemPedidoEntity(request, idPedidoInt)
+
+	dbErr := srv.dbClient.CreateItemPedido(*item, userID)
+	if dbErr != nil {
+		zap.L().Error("Error creating item pedido in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Item pedido created successfully", zap.String("idPedido", idPedido), zap.Int("idProduto", item.IDProduto))
+	return true, nil
+}
+
+// FUNÇÕES DE ESTOQUE ------------------------------------------------------------------------------------------------------------------------------------
+
+func (srv *Service) GetAllEstoqueService(userID string, page, limit int) (*dtos.EstoqueListResponse, *exceptions.RestErr) {
+	zap.L().Info("Starting get all estoque service", zap.Int("page", page), zap.Int("limit", limit))
+
+	offset := (page - 1) * limit
+
+	estoque, total, dbErr := srv.dbClient.GetAllEstoquePaginated(userID, limit, offset)
+	if dbErr != nil {
+		zap.L().Error("Error getting estoque from database", zap.Error(dbErr))
+		return nil, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	// Converter entidades para DTOs
+	var estoqueResponse []dtos.EstoqueResponse
+	for _, item := range estoque {
+		estoqueResponse = append(estoqueResponse, dtos.EstoqueResponse{
+			IDEstoque:           item.IDEstoque,
+			IDProduto:           item.IDProduto,
+			IDLote:              item.IDLote,
+			Quantidade:          item.Quantidade,
+			Vencimento:          item.Vencimento,
+			CustoUnitario:       item.CustoUnitario,
+			DataEntrada:         item.DataEntrada,
+			DataSaida:           item.DataSaida,
+			DocumentoReferencia: item.DocumentoReferencia,
+			Status:              item.Status,
+		})
+	}
+
+	totalPages := (total + limit - 1) / limit
+
+	response := &dtos.EstoqueListResponse{
+		Estoque:    estoqueResponse,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}
+
+	zap.L().Info("Estoque service completed successfully", zap.Int("total", total))
+	return response, nil
+}
+
+func (srv *Service) CreateEstoqueService(userID string, request dtos.CreateEstoqueRequest) (bool, *exceptions.RestErr) {
+	zap.L().Info("Starting estoque creation service", zap.Int("id_produto", request.IDProduto))
+
+	estoque := entity.BuildEstoqueEntity(request)
+
+	dbErr := srv.dbClient.CreateEstoque(*estoque, userID)
+	if dbErr != nil {
+		zap.L().Error("Error creating estoque in database", zap.Error(dbErr))
+		return false, exceptions.NewInternalServerError("Internal server error")
+	}
+
+	zap.L().Info("Estoque created successfully", zap.Int("id_produto", estoque.IDProduto))
+	return true, nil
 }

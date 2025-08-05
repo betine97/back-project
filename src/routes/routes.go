@@ -34,4 +34,10 @@ func SetupRoutes(app *fiber.App, userController controller.ControllerInterface) 
 	// Protected pedidos routes (com autenticação)
 	pedidos := api.Group("/pedidos")
 	pedidos.Get("/", userController.GetAllPedidos)
+
+	// Protected clients routes (com autenticação)
+	clients := api.Group("/clients")
+	clients.Get("/", userController.GetAllClients)
+	clients.Post("/", userController.CreateClient)
+
 }

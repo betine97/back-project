@@ -1,5 +1,7 @@
 package entity
 
+import dtos "github.com/betine97/back-project.git/src/model/dtos"
+
 type User struct {
 	ID          uint   `gorm:"primaryKey;autoIncrement" json:"id"`
 	FirstName   string `gorm:"column:first_name;not null" json:"first_name"`
@@ -11,4 +13,17 @@ type User struct {
 	City        string `gorm:"column:city;not null" json:"city"`
 	State       string `gorm:"column:state;not null" json:"state"`
 	Password    string `gorm:"column:password;not null" json:"-"`
+}
+
+func BuildUserEntity(request dtos.CreateUser) *User {
+	return &User{
+		FirstName:   request.FirstName,
+		LastName:    request.LastName,
+		Email:       request.Email,
+		NomeEmpresa: request.NomeEmpresa,
+		Categoria:   request.Categoria,
+		Segmento:    request.Segmento,
+		City:        request.City,
+		State:       request.State,
+	}
 }

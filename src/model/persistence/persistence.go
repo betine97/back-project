@@ -30,6 +30,21 @@ type PersistenceInterfaceDBClient interface {
 	DeleteProduct(id string, userID string) error
 
 	GetAllPedidos(userID string) ([]entity.Pedido, error)
+	GetAllPedidosPaginated(userID string, limit, offset int) ([]entity.Pedido, int, error)
+	GetPedidoById(id string, userID string) (*entity.Pedido, error)
+	CreatePedido(pedido *entity.Pedido, userID string) error
+
+	// Itens de Pedido
+	CreateItemPedido(item entity.ItemPedido, userID string) error
+
+	// View Detalhes Pedido
+	GetDetalhesPedido(idPedido string, userID string) ([]entity.ViewDetalhesPedido, error)
+	GetDetalhesPedidoPaginated(idPedido string, userID string, limit, offset int) ([]entity.ViewDetalhesPedido, int, error)
+
+	// Estoque
+	GetAllEstoque(userID string) ([]entity.Estoque, error)
+	GetAllEstoquePaginated(userID string, limit, offset int) ([]entity.Estoque, int, error)
+	CreateEstoque(estoque entity.Estoque, userID string) error
 }
 
 type DBConnectionDBMaster struct {
@@ -298,11 +313,180 @@ func (repo *DBConnectionDBClient) GetAllPedidos(userID string) ([]entity.Pedido,
 
 	zap.L().Info("Getting all pedidos from database", zap.String("userID", userID))
 	var pedidos []entity.Pedido
-	err := db.Table("pedidos").Find(&pedidos).Error // Especificar a tabela correta
+	err := db.Table("pedidos").Find(&pedidos).Error
 	if err != nil {
 		zap.L().Error("Error getting pedidos from database", zap.Error(err))
 		return nil, err
 	}
 	zap.L().Info("Successfully retrieved pedidos", zap.Int("count", len(pedidos)))
 	return pedidos, nil
+}
+
+func (repo *DBConnectionDBClient) GetAllPedidosPaginated(userID string, limit, offset int) ([]entity.Pedido, int, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting paginated pedidos from database", zap.String("userID", userID), zap.Int("limit", limit), zap.Int("offset", offset))
+
+	var pedidos []entity.Pedido
+	var total int64
+
+	// Contar total de registros
+	if err := db.Table("pedidos").Count(&total).Error; err != nil {
+		zap.L().Error("Error counting pedidos", zap.Error(err))
+		return nil, 0, err
+	}
+
+	// Buscar pedidos com paginação
+	err := db.Table("pedidos").Limit(limit).Offset(offset).Find(&pedidos).Error
+	if err != nil {
+		zap.L().Error("Error getting paginated pedidos from database", zap.Error(err))
+		return nil, 0, err
+	}
+
+	zap.L().Info("Successfully retrieved paginated pedidos", zap.Int("count", len(pedidos)), zap.Int64("total", total))
+	return pedidos, int(total), nil
+}
+
+func (repo *DBConnectionDBClient) GetPedidoById(id string, userID string) (*entity.Pedido, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting pedido by ID from database", zap.String("id", id), zap.String("userID", userID))
+
+	var pedido entity.Pedido
+	err := db.Table("pedidos").Where("id_pedido = ?", id).First(&pedido).Error
+	if err != nil {
+		zap.L().Error("Error getting pedido by ID from database", zap.Error(err))
+		return nil, err
+	}
+
+	zap.L().Info("Successfully retrieved pedido by ID", zap.String("id", id))
+	return &pedido, nil
+}
+
+func (repo *DBConnectionDBClient) CreatePedido(pedido *entity.Pedido, userID string) error {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Creating pedido in database", zap.String("userID", userID))
+
+	err := db.Table("pedidos").Create(pedido).Error
+	if err != nil {
+		zap.L().Error("Error creating pedido in database", zap.Error(err))
+		return err
+	}
+
+	zap.L().Info("Successfully created pedido", zap.Int("id", pedido.IDPedido))
+	return nil
+}
+
+// FUNÇÕES DE ITENS DE PEDIDO ------------------------------------------------------------------------------------------------------------------------------------
+
+func (repo *DBConnectionDBClient) CreateItemPedido(item entity.ItemPedido, userID string) error {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Creating item pedido in database", zap.String("userID", userID), zap.Int("idPedido", item.IDPedido))
+
+	err := db.Table("itens_pedido").Create(&item).Error
+	if err != nil {
+		zap.L().Error("Error creating item pedido in database", zap.Error(err))
+		return err
+	}
+
+	zap.L().Info("Successfully created item pedido", zap.Int("idItem", item.IDItem), zap.Int("idPedido", item.IDPedido))
+	return nil
+}
+
+// FUNÇÕES DA VIEW DETALHES PEDIDO ------------------------------------------------------------------------------------------------------------------------------------
+
+func (repo *DBConnectionDBClient) GetDetalhesPedido(idPedido string, userID string) ([]entity.ViewDetalhesPedido, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting detalhes pedido from view", zap.String("idPedido", idPedido), zap.String("userID", userID))
+
+	var detalhes []entity.ViewDetalhesPedido
+	err := db.Table("view_detalhes_pedido").Where("id_pedido = ?", idPedido).Find(&detalhes).Error
+	if err != nil {
+		zap.L().Error("Error getting detalhes pedido from view", zap.Error(err))
+		return nil, err
+	}
+
+	zap.L().Info("Successfully retrieved detalhes pedido from view", zap.String("idPedido", idPedido), zap.Int("count", len(detalhes)))
+	return detalhes, nil
+}
+
+func (repo *DBConnectionDBClient) GetDetalhesPedidoPaginated(idPedido string, userID string, limit, offset int) ([]entity.ViewDetalhesPedido, int, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting paginated detalhes pedido from view", zap.String("idPedido", idPedido), zap.String("userID", userID), zap.Int("limit", limit), zap.Int("offset", offset))
+
+	var detalhes []entity.ViewDetalhesPedido
+	var total int64
+
+	// Contar total de registros para o pedido específico na view
+	if err := db.Table("view_detalhes_pedido").Where("id_pedido = ?", idPedido).Count(&total).Error; err != nil {
+		zap.L().Error("Error counting detalhes pedido from view", zap.Error(err))
+		return nil, 0, err
+	}
+
+	// Buscar detalhes com paginação
+	err := db.Table("view_detalhes_pedido").Where("id_pedido = ?", idPedido).Limit(limit).Offset(offset).Find(&detalhes).Error
+	if err != nil {
+		zap.L().Error("Error getting paginated detalhes pedido from view", zap.Error(err))
+		return nil, 0, err
+	}
+
+	zap.L().Info("Successfully retrieved paginated detalhes pedido from view", zap.String("idPedido", idPedido), zap.Int("count", len(detalhes)), zap.Int64("total", total))
+	return detalhes, int(total), nil
+}
+
+// Estoque methods
+func (repo *DBConnectionDBClient) GetAllEstoque(userID string) ([]entity.Estoque, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting all estoque from database", zap.String("userID", userID))
+	var estoque []entity.Estoque
+	err := db.Find(&estoque).Error
+	if err != nil {
+		zap.L().Error("Error getting estoque from database", zap.Error(err))
+		return nil, err
+	}
+
+	zap.L().Info("Successfully retrieved estoque", zap.Int("count", len(estoque)))
+	return estoque, nil
+}
+
+func (repo *DBConnectionDBClient) GetAllEstoquePaginated(userID string, limit, offset int) ([]entity.Estoque, int, error) {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Getting paginated estoque from database", zap.String("userID", userID), zap.Int("limit", limit), zap.Int("offset", offset))
+
+	var estoque []entity.Estoque
+	var total int64
+
+	// Contar total de registros
+	err := db.Model(&entity.Estoque{}).Count(&total).Error
+	if err != nil {
+		zap.L().Error("Error counting estoque", zap.Error(err))
+		return nil, 0, err
+	}
+
+	// Buscar registros paginados
+	err = db.Limit(limit).Offset(offset).Find(&estoque).Error
+	if err != nil {
+		zap.L().Error("Error getting paginated estoque from database", zap.Error(err))
+		return nil, 0, err
+	}
+
+	zap.L().Info("Successfully retrieved paginated estoque", zap.Int("count", len(estoque)), zap.Int64("total", total))
+	return estoque, int(total), nil
+}
+
+func (repo *DBConnectionDBClient) CreateEstoque(estoque entity.Estoque, userID string) error {
+	db := repo.getClientDB(userID)
+
+	zap.L().Info("Creating estoque in the database", zap.Int("id_produto", estoque.IDProduto), zap.String("userID", userID))
+	err := db.Create(&estoque).Error
+	if err != nil {
+		zap.L().Error("Error creating estoque in database", zap.Error(err))
+	}
+	return err
 }
