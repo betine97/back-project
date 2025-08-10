@@ -22,6 +22,26 @@ type EstoqueListResponse struct {
 	TotalPages int               `json:"total_pages"`
 }
 
+// Para GET api/estoque usando view_detalhes_estoque
+type DetalhesEstoqueResponse struct {
+	NomeProduto         string `json:"nome_produto"`
+	Lote                int    `json:"lote"`
+	Quantidade          int    `json:"quantidade"`
+	DataEntrada         string `json:"data_entrada"`
+	DataSaida           string `json:"data_saida"`
+	Vencimento          string `json:"vencimento"`
+	DocumentoReferencia string `json:"documento_referencia"`
+	Status              string `json:"status"`
+}
+
+type DetalhesEstoqueListResponse struct {
+	Estoque    []DetalhesEstoqueResponse `json:"estoque"`
+	Total      int                       `json:"total"`
+	Page       int                       `json:"page"`
+	Limit      int                       `json:"limit"`
+	TotalPages int                       `json:"total_pages"`
+}
+
 // Para POST api/estoque
 type CreateEstoqueRequest struct {
 	IDProduto           int     `json:"id_produto" validate:"required,gt=0"`
